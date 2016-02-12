@@ -28,38 +28,55 @@ class BenchmarkDatabase(object):
         self.conn   = sqlite3.connect(self.dbname)
         self.cursor = self.conn.cursor()
 
+    def _ensure_commits(self):
+        """
+        if the commits table has not been created yet, create it
+        """
+        self.cursor.execute("CREATE TABLE if not exists Commits (Dependency TEXT UNIQUE, LastCommit TEXT)")
+
+    def _ensure_benchmark_data(self):
+        """
+        if the bechmark data table has not been created yet, create it
+        """
+        self.cursor.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL)")
+
     def get_last_commit(self, dependency):
         """
-        Check the database for the most recent commit that was benchmarked.
+        Check the database for the most recent commit that was benchmarked for the dependency.
         """
-        c = self.cursor
+        self._ensure_commits()
 
-        # if the commits table has not been created yet, create it
-        c.execute("CREATE TABLE if not exists Commits (Dependency TEXT, Repo TEXT, LastCommit TEXT)")
+        self.cursor.execute("SELECT LastCommit FROM Commits WHERE Dependency == ?", (dependency,))
+        rows = self.cursor.fetchall()
+        return rows[0][0]
 
-        # try to
-        execute_string = "SELECT LastCommit FROM Commits WHERE Repo == "
-        execute_string += "'" + dependency + "'"
-        c.execute(execute_string)
-        commit = c.fetchall()
-        print("last commit for", dependency, "=", commit)
-        return commit
+    def update_commits(self, commits):
+        """
+        update commits
+        """
+        self._ensure_commits()
 
-    def add_benchmark_data(self, filename):
+        for dependency, commit in commits.items():
+            print('INSERTING', dependency, commit)
+            self.cursor.execute('INSERT OR REPLACE INTO Commits VALUES (?, ?)', (dependency, str(commit)))
+
+    def add_benchmark_data(self, commits, filename):
         """
         Insert benchmarks results into BenchmarkData table.
         Create the table if it doesn't already exist.
         """
-        c = self.cursor
-        c.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL)")
+        self.update_commits(commits)
+
+        self._ensure_benchmark_data()
+
         with open(filename, 'r') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
                 spec = row[1].rsplit('.', 1)[1]
-                c.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], row[3], row[4]))
+                self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], row[3], row[4]))
 
     def dump_benchmark_data(self):
-        with open(self.dbname+'.benchmark_data.sql', 'w') as f:
+        with open(self.dbname+'.sql', 'w') as f:
             for line in self.conn.iterdump():
                 f.write('%s\n' % line)
 
@@ -137,8 +154,8 @@ def benchmark(project):
     project_info = read_json(project+".json")
     project_info["name"] = project
 
+    current_commits = {}
     update_triggered_by = []
-    benchmark_needed = False
 
     db = BenchmarkDatabase(project)
 
@@ -149,21 +166,20 @@ def benchmark(project):
         with repo(dependency):
             last_commit = str(db.get_last_commit(dependency))
             print ("Last Commit: " + last_commit)
-            current_commit = get_current_commit()
-            print ("Current Commit: " + current_commit)
-            if (last_commit != current_commit):
+            current_commits[dependency] = get_current_commit()
+            print ("Current Commit: " + current_commits[dependency])
+            if (last_commit != current_commits[dependency]):
                 print("There has been an update to %s.\n\n" % dependency)
                 update_triggered_by.append(dependency)
-                benchmark_needed = 1
 
-    if (benchmark_needed):
+    if update_triggered_by:
         print("Benchmark triggered by updates to: ", update_triggered_by)
         conda_env = create_conda_env(project)
         activate_install_conda_env(conda_env, project_info["dependencies"])
         with repo(project_info["repository"]):
             get_exitcode_stdout_stderr("pip install -e .")
             run_benchmarks()
-            db.add_benchmark_data("benchmark_data.csv")
+            db.add_benchmark_data(current_commits, "benchmark_data.csv")
 
         db.dump_benchmark_data()
         remove_conda_env(conda_env)
@@ -322,10 +338,10 @@ def _get_parser():
     parser.usage = "benchmark [options]"
 
     parser.add_argument('projects', metavar='project', nargs='*',
-                        help='project to benchmark (references a JSON file in the working directory')
+                        help='project to benchmark (references a JSON file in the working directory)')
 
     parser.add_argument('-p', '--plot', metavar='SPEC', action='store', dest='plot',
-                        help='the spec of a benchmark to plot.')
+                        help='the spec of a benchmark to plot')
 
     return parser
 
