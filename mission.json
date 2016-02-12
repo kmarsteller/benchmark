@@ -1,0 +1,8 @@
+{
+    "repository": "git@github.com:swryan/mission-allocation",
+
+    "dependencies": [
+        "git@github.com:openmdao/MBI",
+        "https://bitbucket.org/mdolab/pyoptsparse"
+    ]
+}
