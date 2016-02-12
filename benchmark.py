@@ -32,29 +32,31 @@ class BenchmarkDatabase(object):
         """
         Check the database for the most recent commit that was benchmarked.
         """
-        cursor = self.cursor
+        c = self.cursor
 
         # if the commits table has not been created yet, create it
-        cursor.execute("CREATE TABLE if not exists Commits (Dependency TEXT, Repo TEXT, LastCommit TEXT)")
+        c.execute("CREATE TABLE if not exists Commits (Dependency TEXT, Repo TEXT, LastCommit TEXT)")
 
         # try to
         execute_string = "SELECT LastCommit FROM Commits WHERE Repo == "
         execute_string += "'" + dependency + "'"
-        cursor.execute(execute_string)
-        commit = cursor.fetchall()
+        c.execute(execute_string)
+        commit = c.fetchall()
         print("last commit for", dependency, "=", commit)
         return commit
 
     def add_benchmark_data(self, filename):
         """
-        Stolen directly from Steve, needs to be modified
+        Insert benchmarks results into BenchmarkData table.
+        Create the table if it doesn't already exist.
         """
-        cursor = self.cursor
-        cursor.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL)")
+        c = self.cursor
+        c.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL)")
         with open(filename, 'r') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
-                cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], row[1], row[2], row[3], row[4]))
+                spec = row[1].rsplit('.', 1)[1]
+                c.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], row[3], row[4]))
 
     def dump_benchmark_data(self):
         with open(self.dbname+'.benchmark_data.sql', 'w') as f:
@@ -271,6 +273,48 @@ def run_benchmarks():
     print (code, out, err)
 
 
+def plot_benchmark_data(project, spec):
+    print('plot:', project, spec)
+    try:
+        import numpy as np
+        from matplotlib import pyplot
+
+        db = BenchmarkDatabase(project)
+
+        c = db.cursor
+
+        data = {}
+        for row in c.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
+            print('row:', row)
+            data.setdefault('timestamp', []).append(row[0])
+            data.setdefault('status', []).append(row[2])
+            data.setdefault('elapsed', []).append(row[3])
+            data.setdefault('memory', []).append(row[4])
+
+        timestamp = np.array(data['timestamp'])
+        elapsed   = np.array(data['elapsed'])
+        maxrss    = np.array(data['memory'])
+
+        fig, a1 = pyplot.subplots()
+        x = np.array(range(len(timestamp)))
+
+        a1.plot(x, elapsed, 'b-')
+        a1.set_xlabel('run#')
+        a1.set_ylabel('elapsed', color='b')
+        for tl in a1.get_yticklabels():
+            tl.set_color('b')
+
+        a2 = a1.twinx()
+        a2.plot(x, maxrss, 'r-')
+        a2.set_ylabel('maxrss', color='r')
+        for tl in a2.get_yticklabels():
+            tl.set_color('r')
+
+        pyplot.title(spec)
+        pyplot.show()
+    except ImportError:
+        print("numpy and matplotlib are required to plot benchmark data.")
+
 def _get_parser():
     """Returns a parser to handle command line args."""
 
@@ -278,7 +322,10 @@ def _get_parser():
     parser.usage = "benchmark [options]"
 
     parser.add_argument('projects', metavar='project', nargs='*',
-                        help='project to benchmark, pointing to a JSON file in the current directory')
+                        help='project to benchmark (references a JSON file in the working directory')
+
+    parser.add_argument('-p', '--plot', metavar='SPEC', action='store', dest='plot',
+                        help='the spec of a benchmark to plot.')
 
     return parser
 
@@ -287,14 +334,18 @@ def main(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    # update configuration per cfg file
     conf.update(read_json("benchmark.cfg"))
 
     options = _get_parser().parse_args(args)
 
-    with cd(conf["working_dir"]):
-        for project in options.projects:
-            benchmark(project)
+    if options.plot:
+        with cd(conf["working_dir"]):
+            for project in options.projects:
+                plot_benchmark_data(project, options.plot)
+    else:
+        with cd(conf["working_dir"]):
+            for project in options.projects:
+                benchmark(project)
 
 
 if __name__ == '__main__':
