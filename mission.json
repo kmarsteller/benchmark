@@ -1,5 +1,6 @@
 {
     "repository": "git@github.com:swryan/mission-allocation",
+    "branch":     "work",
 
     "dependencies": [
         "git@github.com:openmdao/MBI",

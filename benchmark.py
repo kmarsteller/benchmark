@@ -30,15 +30,16 @@ class BenchmarkDatabase(object):
 
     def _ensure_commits(self):
         """
-        if the commits table has not been created yet, create it
+        if the commit tables have not been created yet, create them
         """
-        self.cursor.execute("CREATE TABLE if not exists Commits (Dependency TEXT UNIQUE, LastCommit TEXT)")
+        self.cursor.execute("CREATE TABLE if not exists LastCommits (Dependency TEXT UNIQUE, LastCommit TEXT)")
+        self.cursor.execute("CREATE TABLE if not exists Commits (DateTime INT, Dependency TEXT, LastCommit TEXT, PRIMARY KEY (DateTime, Dependency))")
 
     def _ensure_benchmark_data(self):
         """
         if the bechmark data table has not been created yet, create it
         """
-        self.cursor.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL)")
+        self.cursor.execute("CREATE TABLE if not exists BenchmarkData (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL, PRIMARY KEY (DateTime, Spec))")
 
     def get_last_commit(self, dependency):
         """
@@ -46,11 +47,14 @@ class BenchmarkDatabase(object):
         """
         self._ensure_commits()
 
-        self.cursor.execute("SELECT LastCommit FROM Commits WHERE Dependency == ?", (dependency,))
+        self.cursor.execute("SELECT LastCommit FROM LastCommits WHERE Dependency == ?", (dependency,))
         rows = self.cursor.fetchall()
-        return rows[0][0]
+        if rows:
+            return rows[0][0]
+        else:
+            return ''
 
-    def update_commits(self, commits):
+    def update_commits(self, commits, timestamp):
         """
         update commits
         """
@@ -58,15 +62,14 @@ class BenchmarkDatabase(object):
 
         for dependency, commit in commits.items():
             print('INSERTING', dependency, commit)
-            self.cursor.execute('INSERT OR REPLACE INTO Commits VALUES (?, ?)', (dependency, str(commit)))
+            self.cursor.execute('INSERT OR REPLACE INTO LastCommits VALUES (?, ?)', (dependency, str(commit)))
+            self.cursor.execute('INSERT INTO Commits VALUES (?, ?, ?)', (timestamp, dependency, str(commit)))
 
     def add_benchmark_data(self, commits, filename):
         """
         Insert benchmarks results into BenchmarkData table.
         Create the table if it doesn't already exist.
         """
-        self.update_commits(commits)
-
         self._ensure_benchmark_data()
 
         with open(filename, 'r') as csvfile:
@@ -74,6 +77,8 @@ class BenchmarkDatabase(object):
             for row in reader:
                 spec = row[1].rsplit('.', 1)[1]
                 self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], row[3], row[4]))
+
+        self.update_commits(commits, row[0])  # row[0] is the timestamp for this set of benchmark data
 
     def dump_benchmark_data(self):
         with open(self.dbname+'.sql', 'w') as f:
@@ -124,7 +129,7 @@ def cd(newdir):
 
 
 @contextmanager
-def repo(repository):
+def repo(repository, branch=None):
     """
     cd into local copy of repository.  if the repository has not been
     cloned yet, then clone it to working directory first.
@@ -139,7 +144,7 @@ def repo(repository):
 
     repo_name = repository.split('/')[-1]
     if not os.path.isdir(repo_name):
-        clone_repo(repository)
+        clone_repo(repository, branch)
 
     print('cd into repo', repo_name)
     os.chdir(repo_name)
@@ -151,8 +156,12 @@ def repo(repository):
 
 
 def benchmark(project):
-    project_info = read_json(project+".json")
-    project_info["name"] = project
+    if project.endswith(".json"):
+        project_info = read_json(project)
+        project = project.rsplit('.', 1)[0]
+    else:
+        project_info = read_json(project+".json")
+        project_info["name"] = project
 
     current_commits = {}
     update_triggered_by = []
@@ -163,37 +172,49 @@ def benchmark(project):
     dependencies.append(project_info["repository"])
 
     for dependency in dependencies:
-        with repo(dependency):
+        # for the project repository, we may want a particular branch
+        if dependency is project_info["repository"]:
+            branch = project_info.get("branch", None)
+        else:
+            branch = None
+        # check each dependency for any update since last run
+        with repo(dependency, branch):
             last_commit = str(db.get_last_commit(dependency))
             print ("Last Commit: " + last_commit)
             current_commits[dependency] = get_current_commit()
             print ("Current Commit: " + current_commits[dependency])
             if (last_commit != current_commits[dependency]):
-                print("There has been an update to %s.\n\n" % dependency)
+                print("There has been an update to %s\n\n" % dependency)
                 update_triggered_by.append(dependency)
 
     if update_triggered_by:
         print("Benchmark triggered by updates to: ", update_triggered_by)
         conda_env = create_conda_env(project)
         activate_install_conda_env(conda_env, project_info["dependencies"])
-        with repo(project_info["repository"]):
+        with repo(project_info["repository"], project_info["branch"]):
             get_exitcode_stdout_stderr("pip install -e .")
             run_benchmarks()
             db.add_benchmark_data(current_commits, "benchmark_data.csv")
+            # os.remove("benchmark_data.csv")
 
         db.dump_benchmark_data()
         remove_conda_env(conda_env)
 
 
-def clone_repo(repository):
+def clone_repo(repository, branch):
     """
     clone repository into current directory
     """
-    clone_cmd = " clone " + repository
+    if branch:
+        git_clone_cmd = "git clone -b %s --single-branch %s" % (branch, repository)
+        hg_clone_cmd = "hg clone %s -r %s" % (repository, branch)
+    else:
+        git_clone_cmd = "git clone " + repository
+        hg_clone_cmd = "hg clone " + repository
 
-    code, out, err = get_exitcode_stdout_stderr("git" + clone_cmd)
+    code, out, err = get_exitcode_stdout_stderr(git_clone_cmd)
     if (code != 0):
-        code, out, err = get_exitcode_stdout_stderr("hg" + clone_cmd)
+        code, out, err = get_exitcode_stdout_stderr(hg_clone_cmd)
 
     print(code, out, err)
 
@@ -205,7 +226,7 @@ def get_current_commit():
     """
     Update and check the current repo for the most recent commit.
     """
-    pull_git = "git pull origin master"
+    pull_git = "git pull"
     pull_hg = "hg pull; hg merge"
 
     commit_git = "git rev-parse HEAD"
@@ -228,7 +249,7 @@ def create_conda_env(project):
     """
     timestr = time.strftime("%Y%m%d-%H%M%S")
     env_name = project + "_" + timestr
-    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig"
+    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig psutil"
     code, out, err = get_exitcode_stdout_stderr(conda_create)
     if (code == 0):
         return env_name
@@ -330,6 +351,7 @@ def plot_benchmark_data(project, spec):
         pyplot.show()
     except ImportError:
         print("numpy and matplotlib are required to plot benchmark data.")
+
 
 def _get_parser():
     """Returns a parser to handle command line args."""
