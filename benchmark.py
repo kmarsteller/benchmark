@@ -15,10 +15,13 @@ from argparse import ArgumentParser
 
 from contextlib import contextmanager
 
+benchmark_dir = os.path.abspath(os.path.dirname(__file__))
+
 # default configuration options
 conf = {
-    "working_dir": ".",
-    "repo_dir": "."
+    "working_dir": benchmark_dir,
+    "repo_dir":    os.path.join(benchmark_dir, "repos"),
+    "remove_csv":  False
 }
 
 
@@ -75,8 +78,8 @@ class BenchmarkDatabase(object):
         with open(filename, 'r') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
-                spec = row[1].rsplit('.', 1)[1]
-                self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], row[3], row[4]))
+                spec = row[1].rsplit(':', 1)[1]
+                self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
 
         self.update_commits(commits, row[0])  # row[0] is the timestamp for this set of benchmark data
 
@@ -90,11 +93,8 @@ def read_json(filename):
     """
     read data from a JSON file
     """
-    try:
-        with open(filename) as json_file:
-            return json.loads(json_file.read())
-    except:
-        raise RuntimeError("%s is not a valid JSON file." % filename)
+    with open(filename) as json_file:
+        return json.loads(json_file.read())
 
 
 def get_exitcode_stdout_stderr(cmd):
@@ -157,11 +157,11 @@ def repo(repository, branch=None):
 
 def benchmark(project):
     if project.endswith(".json"):
-        project_info = read_json(project)
-        project = project.rsplit('.', 1)[0]
+        project_file = project
     else:
-        project_info = read_json(project+".json")
-        project_info["name"] = project
+        project_file = project+".json"
+    project_info = read_json(project_file)
+    project_info["name"] = os.path.basename(project_file).rsplit('.', 1)[0]
 
     current_commits = {}
     update_triggered_by = []
@@ -189,16 +189,18 @@ def benchmark(project):
 
     if update_triggered_by:
         print("Benchmark triggered by updates to: ", update_triggered_by)
-        conda_env = create_conda_env(project)
-        activate_install_conda_env(conda_env, project_info["dependencies"])
+        env_name = create_conda_env(project_info["name"])
+        activate_install_conda_env(env_name, project_info["dependencies"])
         with repo(project_info["repository"], project_info["branch"]):
             get_exitcode_stdout_stderr("pip install -e .")
-            run_benchmarks()
-            db.add_benchmark_data(current_commits, "benchmark_data.csv")
-            # os.remove("benchmark_data.csv")
+            csv_file = env_name+".csv"
+            run_benchmarks(csv_file)
+            db.add_benchmark_data(current_commits, csv_file)
+            if conf["remove_csv"]:
+                os.remove(csv_file)
 
         db.dump_benchmark_data()
-        remove_conda_env(conda_env)
+        remove_conda_env(env_name)
 
 
 def clone_repo(repository, branch):
@@ -249,12 +251,12 @@ def create_conda_env(project):
     """
     timestr = time.strftime("%Y%m%d-%H%M%S")
     env_name = project + "_" + timestr
-    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig psutil"
+    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig"
     code, out, err = get_exitcode_stdout_stderr(conda_create)
     if (code == 0):
         return env_name
     else:
-        print("Falied to create conda environment", env_name)
+        raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
 def activate_install_conda_env(env_name, dependencies):
@@ -267,14 +269,14 @@ def activate_install_conda_env(env_name, dependencies):
     os.environ["KEEP_PATH"] = path[0]  # old path leader
     path.remove(path[0])  # remove default conda env
     path = (os.pathsep).join(path)
+    print ("env_name:", env_name, "path:", path)
     path = (os.path.expanduser("~") + "/anaconda/envs/" + env_name + "/bin") + os.pathsep +  path
     print ("PATH NOW: " + path)
     os.environ["PATH"] = path
 
-    #install a couple things that must be in there
+    #install a couple things that must be in there (TODO: specific versions of numpy/scipy)
     # get_exitcode_stdout_stderr("conda install numpy")
     # get_exitcode_stdout_stderr("conda install scipy")
-    # get_exitcode_stdout_stderr("pip install mercurial")
     get_exitcode_stdout_stderr("pip install git+https://github.com/swryan/testflo@work")
 
     install_cmd = "python setup.py install"
@@ -301,11 +303,11 @@ def remove_conda_env(env_name):
     return code
 
 
-def run_benchmarks():
+def run_benchmarks(csv_file):
     """
     Use testflo to run benchmarks)
     """
-    testflo_cmd = "testflo -bv"
+    testflo_cmd = "testflo -bv -d %s" % csv_file
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     print (code, out, err)
 
@@ -372,7 +374,11 @@ def main(args=None):
     if args is None:
         args = sys.argv[1:]
 
-    conf.update(read_json("benchmark.cfg"))
+    # read local configuration if available
+    try:
+        conf.update(read_json("benchmark.cfg"))
+    except IOError:
+        pass
 
     options = _get_parser().parse_args(args)
 
