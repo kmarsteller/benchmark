@@ -155,18 +155,11 @@ def repo(repository, branch=None):
         os.chdir(prev_dir)
 
 
-def benchmark(project):
-    if project.endswith(".json"):
-        project_file = project
-    else:
-        project_file = project+".json"
-    project_info = read_json(project_file)
-    project_info["name"] = os.path.basename(project_file).rsplit('.', 1)[0]
-
+def benchmark(project_info):
     current_commits = {}
     update_triggered_by = []
 
-    db = BenchmarkDatabase(project)
+    db = BenchmarkDatabase(project_info["name"])
 
     dependencies = project_info["dependencies"]
     dependencies.append(project_info["repository"])
@@ -382,14 +375,22 @@ def main(args=None):
 
     options = _get_parser().parse_args(args)
 
-    if options.plot:
-        with cd(conf["working_dir"]):
-            for project in options.projects:
-                plot_benchmark_data(project, options.plot)
-    else:
-        with cd(conf["working_dir"]):
-            for project in options.projects:
-                benchmark(project)
+    with cd(conf["working_dir"]):
+        for project in options.projects:
+
+            # get project info
+            if project.endswith(".json"):
+                project_file = project
+            else:
+                project_file = project+".json"
+            project_info = read_json(project_file)
+            project_info["name"] = os.path.basename(project_file).rsplit('.', 1)[0]
+
+            # run benchmark or plot as requested
+            if options.plot:
+                plot_benchmark_data(project_info["name"], options.plot)
+            else:
+                benchmark(project_info)
 
 
 if __name__ == '__main__':
