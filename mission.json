@@ -2,8 +2,14 @@
     "repository": "git@github.com:swryan/mission-allocation",
     "branch":     "work",
 
-    "dependencies": [
+    "triggers": [
         "git@github.com:openmdao/MBI",
         "https://bitbucket.org/mdolab/pyoptsparse"
+    ],
+
+    "dependencies": [
+        "mpi4py",
+        "git+https://bitbucket.org/petsc/petsc@v3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.5"
     ]
 }
