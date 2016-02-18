@@ -131,6 +131,7 @@ def get_exitcode_stdout_stderr(cmd):
         logging.debug("STDOUT =>\n%s" % out)
     if err:
         logging.debug("STDERR =>\n%s" % err)
+        print(err)
     return rc, out, err
 
 
@@ -189,10 +190,12 @@ def benchmark(project_info, force=False):
 
     db = BenchmarkDatabase(project_info["name"])
 
+    # determine if a new benchmark run is needed, this may be due to the
+    # project repo or a trigger repo being updated or the force option
     if force:
         update_triggered_by.append('force')
     else:
-        triggers = project_info["triggers"]
+        triggers = project_info.get("triggers", [])
         triggers.append(project_info["repository"])
 
         for trigger in triggers:
@@ -213,14 +216,29 @@ def benchmark(project_info, force=False):
                     print("There has been an update to %s" % trigger)
                     update_triggered_by.append(trigger)
 
+    # if new benchmark run is needed:
+    # - create and activate a clean env
+    # - run the benchmark
+    # - save benchmark results to database
+    # - clean up env and repos
     if update_triggered_by:
         logging.info("Benchmark triggered by updates to: %s" % str(update_triggered_by))
         print("Benchmark triggered by updates to: %s" % str(update_triggered_by))
-        env_name = create_env(project_info["name"])
-        activate_env(env_name, project_info["triggers"],
-                               project_info.get("dependencies", []))
+
+        triggers = project_info.get("triggers", [])
+        dependencies = project_info.get("dependencies", [])
+
+        env_name = create_env(project_info["name"], dependencies)
+        activate_env(env_name, triggers, dependencies)
+
         with repo(project_info["repository"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
+
+            rc, out, err = get_exitcode_stdout_stderr("pip list")
+            print(out)
+            rc, out, err = get_exitcode_stdout_stderr("pip freeze")
+            print(out)
+
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file)
@@ -271,13 +289,16 @@ def get_current_commit():
     return out
 
 
-def create_env(project):
+def create_env(project, dependencies):
     """
     Create a conda env.
     """
     timestr = time.strftime("%Y%m%d-%H%M%S")
     env_name = project + "_" + timestr
-    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig psutil"
+    conda_create = "conda create -y -n " + env_name + " python=2.7 pip psutil nomkl"
+    for dep in dependencies:
+        if dep.startswith("numpy") or dep.startswith("scipy"):
+            conda_create = conda_create + " " + dep
     code, out, err = get_exitcode_stdout_stderr(conda_create)
     if (code == 0):
         return env_name
@@ -288,10 +309,6 @@ def create_env(project):
 def activate_env(env_name, triggers, dependencies):
     """
     Activate an existing conda env and install triggers and dependencies into it
-
-    Triggers are installed from a local copy of the repo using setup.py install
-
-    Dependencies are pip installed
     """
     # activate environment by modifying PATH
     logging.info("PATH AT FIRST: %s" % os.environ["PATH"])
@@ -304,18 +321,19 @@ def activate_env(env_name, triggers, dependencies):
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
 
-    # install dependencies
-    # (TODO: handle specific versions of numpy/scipy)
+    # install testflo to do the benchmarking
     get_exitcode_stdout_stderr("pip install git+https://github.com/swryan/testflo@work")
 
-    install_cmd = "pip install "
+    # dependencies are pip installed
     for dependency in dependencies:
-        code, out, err = get_exitcode_stdout_stderr(install_cmd + dependency)
+        # numpy and scipy are installed when the env is created
+        if not dependency.startswith("numpy") and not dependency.startswith("scipy"):
+            code, out, err = get_exitcode_stdout_stderr("pip install " + dependency)
 
-    install_cmd = "python setup.py install"
+    # triggers are installed from a local copy of the repo via 'setup.py install'
     for trigger in triggers:
         with repo(trigger):
-            code, out, err = get_exitcode_stdout_stderr(install_cmd)
+            code, out, err = get_exitcode_stdout_stderr("python setup.py install")
 
 
 def remove_env(env_name):
