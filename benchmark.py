@@ -183,7 +183,7 @@ def repo(repository, branch=None):
         os.chdir(prev_dir)
 
 
-def benchmark(project_info, force=False):
+def benchmark(project_info, force=False, keep_env=False):
     current_commits = {}
     update_triggered_by = []
 
@@ -228,9 +228,8 @@ def benchmark(project_info, force=False):
                 os.remove(csv_file)
 
         db.dump_benchmark_data()
-        remove_env(env_name)
-        # TODO: should also remove the repo to make sure we have a clean one next time
-
+        remove_env(env_name, keep_env)
+        remove_repos_dir()
 
 def clone_repo(repository, branch):
     """
@@ -318,7 +317,7 @@ def activate_env(env_name, triggers, dependencies):
             code, out, err = get_exitcode_stdout_stderr(install_cmd)
 
 
-def remove_env(env_name):
+def remove_env(env_name, keep_env):
     """
     Deactivate and remove a conda env at the end of a benchmarking run.
     """
@@ -330,10 +329,21 @@ def remove_env(env_name):
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
 
-    conda_delete = "conda env remove -y --name " + env_name
-    code, out, err = get_exitcode_stdout_stderr(conda_delete)
-    return code
+    if(not keep_env):
+        conda_delete = "conda env remove -y --name " + env_name
+        code, out, err = get_exitcode_stdout_stderr(conda_delete)
+        return code
 
+def remove_repos_dir():
+    """
+    Remove repo directory at the end of a benchmarking run.
+    Will force fresh cloning next time around and avoid branch issues.
+    """
+    repo_dir = os.path.expanduser(conf["repo_dir"])
+    remove_cmd = "rm -rf " + repo_dir
+
+    if os.path.exists(repo_dir):
+        code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
 def run_benchmarks(csv_file):
     """
@@ -402,6 +412,9 @@ def _get_parser():
     parser.add_argument('-f', '--force', action='store_true', dest='force',
                         help='do the benchmark even if nothing has changed')
 
+    parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
+                        help='keep the created conda env after execution (usually for troubleshooting purposes)')
+
     return parser
 
 
@@ -432,7 +445,7 @@ def main(args=None):
             if options.plot:
                 plot_benchmark_data(project_info["name"], options.plot)
             else:
-                benchmark(project_info, force=options.force)
+                benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
 
 if __name__ == '__main__':
