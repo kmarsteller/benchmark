@@ -1,0 +1,16 @@
+{
+    "repository": "git@github.com:swryan/pointer",
+    "branch":     "work",
+
+    "triggers": [
+        "git@github.com:openmdao/OpenMDAO",
+        "https://bitbucket.org/mdolab/pyoptsparse"
+    ],
+
+    "dependencies": [
+        "numpy",
+        "scipy",
+        "networkx",
+        "sqlitedict"
+    ]
+}

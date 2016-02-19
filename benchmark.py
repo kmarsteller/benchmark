@@ -11,6 +11,9 @@ import time
 import json
 import csv
 
+import logging
+logging.basicConfig(filename="benchmark.log", level=logging.DEBUG)
+
 from argparse import ArgumentParser
 
 from contextlib import contextmanager
@@ -20,11 +23,9 @@ benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 # default configuration options
 conf = {
     "working_dir": benchmark_dir,
+    "repo_dir":    "repos",
     "remove_csv":  False
 }
-
-import logging
-logging.basicConfig(filename='benchmark.log',level=logging.DEBUG)
 
 
 class BenchmarkDatabase(object):
@@ -93,10 +94,13 @@ class BenchmarkDatabase(object):
         with open(filename, 'r') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
-                spec = row[1].rsplit(':', 1)[1]
                 logging.info('INSERTING BenchmarkData %s' % str(row))
-                self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
-                data_added = True
+                try:
+                    spec = row[1].rsplit(':', 1)[1]
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
+                    data_added = True
+                except IndexError:
+                    print("Invalid benchmark specification found in results:\n %s" % str(row))
 
         if data_added:
             self.update_commits(commits, row[0])  # row[0] is the timestamp for this set of benchmark data
@@ -130,6 +134,7 @@ def get_exitcode_stdout_stderr(cmd):
         logging.debug("STDOUT =>\n%s" % out)
     if err:
         logging.debug("STDERR =>\n%s" % err)
+        print(err)
     return rc, out, err
 
 
@@ -152,13 +157,14 @@ def cd(newdir):
 
 
 @contextmanager
-def repo(repository, repo_dir, branch=None):
+def repo(repository, branch=None):
     """
     cd into local copy of repository.  if the repository has not been
     cloned yet, then clone it to working directory first.
     """
     prev_dir = os.getcwd()
 
+    repo_dir = conf["repo_dir"]
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
     logging.info('cd into repo dir %s from  %s' % (repo_dir, prev_dir))
@@ -186,15 +192,16 @@ def benchmark(project_info, force=False, keep_env=False):
     update_triggered_by = []
 
     db = BenchmarkDatabase(project_info["name"])
-    
-    #remove previous repo_dirs and clone fresh ones to avoid trouble.
-    repo_dir= os.path.expanduser(os.path.join(conf["working_dir"], (project_info["name"] + "_repos")))
-    remove_repo_dir(repo_dir)
-    
+
+    # remove any previous repo_dir for this project so we start fresh
+    remove_repo_dir(conf["repo_dir"])
+
+    # determine if a new benchmark run is needed, this may be due to the
+    # project repo or a trigger repo being updated or the force option
     if force:
         update_triggered_by.append('force')
     else:
-        triggers = project_info["triggers"]
+        triggers = project_info.get("triggers", [])
         triggers.append(project_info["repository"])
 
         for trigger in triggers:
@@ -204,7 +211,7 @@ def benchmark(project_info, force=False, keep_env=False):
             else:
                 branch = None
             # check each trigger for any update since last run
-            with repo(trigger, repo_dir, branch):
+            with repo(trigger, branch):
                 print('checking trigger', trigger, branch if branch else '')
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s" % last_commit)
@@ -215,15 +222,27 @@ def benchmark(project_info, force=False, keep_env=False):
                     print("There has been an update to %s" % trigger)
                     update_triggered_by.append(trigger)
 
+    # if new benchmark run is needed:
+    # - create and activate a clean env
+    # - run the benchmark
+    # - save benchmark results to database
+    # - clean up env and repos
     if update_triggered_by:
         logging.info("Benchmark triggered by updates to: %s" % str(update_triggered_by))
         print("Benchmark triggered by updates to: %s" % str(update_triggered_by))
-        env_name = create_env(project_info["name"])
-        activate_env(env_name, project_info["triggers"],
-                               project_info.get("dependencies", []),
-                               repo_dir)
-        with repo(project_info["repository"], repo_dir, project_info.get("branch", None)):
+
+        triggers = project_info.get("triggers", [])
+        dependencies = project_info.get("dependencies", [])
+
+        env_name = create_env(project_info["name"], dependencies)
+        activate_env(env_name, triggers, dependencies)
+
+        with repo(project_info["repository"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
+
+            rc, out, err = get_exitcode_stdout_stderr("pip freeze")
+            print(out)
+
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file)
@@ -232,6 +251,7 @@ def benchmark(project_info, force=False, keep_env=False):
 
         db.dump_benchmark_data()
         remove_env(env_name, keep_env)
+
 
 def clone_repo(repository, branch):
     """
@@ -272,13 +292,16 @@ def get_current_commit():
     return out
 
 
-def create_env(project):
+def create_env(project, dependencies):
     """
     Create a conda env.
     """
     timestr = time.strftime("%Y%m%d-%H%M%S")
     env_name = project + "_" + timestr
-    conda_create = "conda create -y -n " + env_name + " python=2.7 pip numpy scipy swig psutil"
+    conda_create = "conda create -y -n " + env_name + " python=2.7 pip psutil nomkl"
+    for dep in dependencies:
+        if dep.startswith("numpy") or dep.startswith("scipy"):
+            conda_create = conda_create + " " + dep
     code, out, err = get_exitcode_stdout_stderr(conda_create)
     if (code == 0):
         return env_name
@@ -286,13 +309,9 @@ def create_env(project):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
-def activate_env(env_name, triggers, dependencies, repo_dir):
+def activate_env(env_name, triggers, dependencies):
     """
     Activate an existing conda env and install triggers and dependencies into it
-
-    Triggers are installed from a local copy of the repo using setup.py install
-
-    Dependencies are pip installed
     """
     # activate environment by modifying PATH
     logging.info("PATH AT FIRST: %s" % os.environ["PATH"])
@@ -305,18 +324,19 @@ def activate_env(env_name, triggers, dependencies, repo_dir):
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
 
-    # install dependencies
-    # (TODO: handle specific versions of numpy/scipy)
+    # install testflo to do the benchmarking
     get_exitcode_stdout_stderr("pip install git+https://github.com/swryan/testflo@work")
 
-    install_cmd = "pip install "
+    # dependencies are pip installed
     for dependency in dependencies:
-        code, out, err = get_exitcode_stdout_stderr(install_cmd + dependency)
+        # numpy and scipy are installed when the env is created
+        if not dependency.startswith("numpy") and not dependency.startswith("scipy"):
+            code, out, err = get_exitcode_stdout_stderr("pip install " + dependency)
 
-    install_cmd = "python setup.py install"
+    # triggers are installed from a local copy of the repo via 'setup.py install'
     for trigger in triggers:
-        with repo(trigger, repo_dir):
-            code, out, err = get_exitcode_stdout_stderr(install_cmd)
+        with repo(trigger):
+            code, out, err = get_exitcode_stdout_stderr("python setup.py install")
 
 
 def remove_env(env_name, keep_env):
@@ -336,6 +356,7 @@ def remove_env(env_name, keep_env):
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
 
+
 def remove_repo_dir(repo_dir):
     """
     Remove repo directory before a benchmarking run.
@@ -345,6 +366,7 @@ def remove_repo_dir(repo_dir):
 
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
+
 
 def run_benchmarks(csv_file):
     """
@@ -440,11 +462,16 @@ def main(args=None):
             else:
                 project_file = project+".json"
             project_info = read_json(project_file)
-            project_info["name"] = os.path.basename(project_file).rsplit('.', 1)[0]
+            project_name = os.path.basename(project_file).rsplit('.', 1)[0]
+            project_info["name"] = project_name
+
+            # use a different repo directory for each project
+            conf["repo_dir"] = os.path.expanduser(
+                os.path.join(conf["working_dir"], (project_name+"_repos")))
 
             # run benchmark or plot as requested
             if options.plot:
-                plot_benchmark_data(project_info["name"], options.plot)
+                plot_benchmark_data(project_name, options.plot)
             else:
                 benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
