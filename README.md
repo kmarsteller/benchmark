@@ -29,13 +29,13 @@ simply add --force to the command, e.g. "python benchmark.py openmdao --force"
 
 CFG FILE:
 _________
-working_dir:
-repo_dir:
+working_dir:  the directory in which benchmark.py and its resulting files will live.
+remove_csv:  whether or not to remove the comma separated values file from a local directory
 
 
 JSON FILE:
 __________
-repository:
-branch:
-triggers:
-dependencies:
+repository:  the repo to be benchmarked
+branch:  the branch of that repo to benchmark
+triggers:  repositories, that if changed, should trigger a new benchmark
+dependencies:  other things needed by the repository in order to run the benchmark

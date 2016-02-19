@@ -20,7 +20,6 @@ benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 # default configuration options
 conf = {
     "working_dir": benchmark_dir,
-    "repo_dir":    os.path.join(benchmark_dir, "repos"),
     "remove_csv":  False
 }
 
@@ -153,14 +152,14 @@ def cd(newdir):
 
 
 @contextmanager
-def repo(repository, branch=None):
+def repo(repository, name, branch=None):
     """
     cd into local copy of repository.  if the repository has not been
     cloned yet, then clone it to working directory first.
     """
     prev_dir = os.getcwd()
 
-    repo_dir = os.path.expanduser(conf["repo_dir"])
+    repo_dir= os.path.expanduser(os.path.join(conf["working_dir"], (name +"_repos")))
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
     logging.info('cd into repo dir %s from  %s' % (repo_dir, prev_dir))
@@ -188,7 +187,10 @@ def benchmark(project_info, force=False, keep_env=False):
     update_triggered_by = []
 
     db = BenchmarkDatabase(project_info["name"])
-
+    
+    #remove previous repos and clone fresh ones to avoid trouble.
+    remove_repos_dir(project_info["name"])
+    
     if force:
         update_triggered_by.append('force')
     else:
@@ -202,7 +204,7 @@ def benchmark(project_info, force=False, keep_env=False):
             else:
                 branch = None
             # check each trigger for any update since last run
-            with repo(trigger, branch):
+            with repo(trigger, project_info["name"], branch):
                 print('checking trigger', trigger, branch if branch else '')
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s" % last_commit)
@@ -218,8 +220,9 @@ def benchmark(project_info, force=False, keep_env=False):
         print("Benchmark triggered by updates to: %s" % str(update_triggered_by))
         env_name = create_env(project_info["name"])
         activate_env(env_name, project_info["triggers"],
-                               project_info.get("dependencies", []))
-        with repo(project_info["repository"], project_info.get("branch", None)):
+                               project_info.get("dependencies", []),
+                               project_info["name"])
+        with repo(project_info["repository"], project_info["name"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
@@ -229,7 +232,6 @@ def benchmark(project_info, force=False, keep_env=False):
 
         db.dump_benchmark_data()
         remove_env(env_name, keep_env)
-        remove_repos_dir()
 
 def clone_repo(repository, branch):
     """
@@ -284,7 +286,7 @@ def create_env(project):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
-def activate_env(env_name, triggers, dependencies):
+def activate_env(env_name, triggers, dependencies, name):
     """
     Activate an existing conda env and install triggers and dependencies into it
 
@@ -313,7 +315,7 @@ def activate_env(env_name, triggers, dependencies):
 
     install_cmd = "python setup.py install"
     for trigger in triggers:
-        with repo(trigger):
+        with repo(trigger, name):
             code, out, err = get_exitcode_stdout_stderr(install_cmd)
 
 
@@ -334,13 +336,15 @@ def remove_env(env_name, keep_env):
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
 
-def remove_repos_dir():
+def remove_repos_dir(name):
     """
-    Remove repo directory at the end of a benchmarking run.
-    Will force fresh cloning next time around and avoid branch issues.
+    Remove repo directory before a benchmarking run.
+    Will force fresh cloning and avoid branch issues.
     """
-    repo_dir = os.path.expanduser(conf["repo_dir"])
+    repo_dir = os.path.join(conf["working_dir"], (name +"_repos"))
+    #repo_dir = os.path.expanduser(conf["repo_dir"])
     remove_cmd = "rm -rf " + repo_dir
+    print(remove_cmd)
 
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
