@@ -222,7 +222,7 @@ def benchmark(project_info, force=False, keep_env=False):
         activate_env(env_name, project_info["triggers"],
                                project_info.get("dependencies", []),
                                repo_dir)
-        with repo(project_info["repository"], repo_name, project_info.get("branch", None)):
+        with repo(project_info["repository"], repo_dir, project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
@@ -286,7 +286,7 @@ def create_env(project):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
-def activate_env(env_name, triggers, dependencies, repo_name):
+def activate_env(env_name, triggers, dependencies, repo_dir):
     """
     Activate an existing conda env and install triggers and dependencies into it
 
@@ -315,7 +315,7 @@ def activate_env(env_name, triggers, dependencies, repo_name):
 
     install_cmd = "python setup.py install"
     for trigger in triggers:
-        with repo(trigger, repo_name):
+        with repo(trigger, repo_dir):
             code, out, err = get_exitcode_stdout_stderr(install_cmd)
 
 

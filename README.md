@@ -27,13 +27,13 @@ To force a run of the benchmarks even if no trigger repos have been changed,
 simply add --force to the command, e.g. "python benchmark.py openmdao --force"
 
 
-CFG FILE:
+CFG FILE:  will be read in if named [project].cfg, e.g. openmdao.cfg
 _________
 working_dir:  the directory in which benchmark.py and its resulting files will live.
 remove_csv:  whether or not to remove the comma separated values file from a local directory
 
 
-JSON FILE:
+JSON FILE:  will be read in if named [project].json, e.g. openmdao.json
 __________
 repository:  the repo to be benchmarked
 branch:  the branch of that repo to benchmark
