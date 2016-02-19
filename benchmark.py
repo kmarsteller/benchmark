@@ -152,14 +152,13 @@ def cd(newdir):
 
 
 @contextmanager
-def repo(repository, name, branch=None):
+def repo(repository, repo_dir, branch=None):
     """
     cd into local copy of repository.  if the repository has not been
     cloned yet, then clone it to working directory first.
     """
     prev_dir = os.getcwd()
 
-    repo_dir= os.path.expanduser(os.path.join(conf["working_dir"], (name +"_repos")))
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
     logging.info('cd into repo dir %s from  %s' % (repo_dir, prev_dir))
@@ -188,8 +187,10 @@ def benchmark(project_info, force=False, keep_env=False):
 
     db = BenchmarkDatabase(project_info["name"])
     
-    #remove previous repos and clone fresh ones to avoid trouble.
-    remove_repos_dir(project_info["name"])
+    #remove previous repo_dirs and clone fresh ones to avoid trouble.
+    repo_dir= os.path.expanduser(os.path.join(conf["working_dir"], (project_info["name"] + "_repos")))
+    print("REPO DIR" + repo_dir)
+    remove_repo_dir(repo_dir)
     
     if force:
         update_triggered_by.append('force')
@@ -204,7 +205,7 @@ def benchmark(project_info, force=False, keep_env=False):
             else:
                 branch = None
             # check each trigger for any update since last run
-            with repo(trigger, project_info["name"], branch):
+            with repo(trigger, repo_dir, branch):
                 print('checking trigger', trigger, branch if branch else '')
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s" % last_commit)
@@ -222,7 +223,7 @@ def benchmark(project_info, force=False, keep_env=False):
         activate_env(env_name, project_info["triggers"],
                                project_info.get("dependencies", []),
                                project_info["name"])
-        with repo(project_info["repository"], project_info["name"], project_info.get("branch", None)):
+        with repo(project_info["repository"], repo_name, project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
@@ -286,7 +287,7 @@ def create_env(project):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
-def activate_env(env_name, triggers, dependencies, name):
+def activate_env(env_name, triggers, dependencies, repo_name):
     """
     Activate an existing conda env and install triggers and dependencies into it
 
@@ -315,7 +316,7 @@ def activate_env(env_name, triggers, dependencies, name):
 
     install_cmd = "python setup.py install"
     for trigger in triggers:
-        with repo(trigger, name):
+        with repo(trigger, repo_name):
             code, out, err = get_exitcode_stdout_stderr(install_cmd)
 
 
@@ -336,15 +337,12 @@ def remove_env(env_name, keep_env):
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
 
-def remove_repos_dir(name):
+def remove_repo_dir(repo_dir):
     """
     Remove repo directory before a benchmarking run.
     Will force fresh cloning and avoid branch issues.
     """
-    repo_dir = os.path.join(conf["working_dir"], (name +"_repos"))
-    #repo_dir = os.path.expanduser(conf["repo_dir"])
     remove_cmd = "rm -rf " + repo_dir
-    print(remove_cmd)
 
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)

@@ -13,7 +13,7 @@ OPTIONS:
 ________
 
 To plot a specific spec from the database, after benchmarking has been run, use:
-"python benchmark.py --plot spec"
+"python benchmark.py project --plot spec"
 
 To keep your temporary conda environment around after benchmarking,
 (for troubleshooting purposes), try (for example):
