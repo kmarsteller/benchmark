@@ -189,7 +189,6 @@ def benchmark(project_info, force=False, keep_env=False):
     
     #remove previous repo_dirs and clone fresh ones to avoid trouble.
     repo_dir= os.path.expanduser(os.path.join(conf["working_dir"], (project_info["name"] + "_repos")))
-    print("REPO DIR" + repo_dir)
     remove_repo_dir(repo_dir)
     
     if force:
@@ -222,7 +221,7 @@ def benchmark(project_info, force=False, keep_env=False):
         env_name = create_env(project_info["name"])
         activate_env(env_name, project_info["triggers"],
                                project_info.get("dependencies", []),
-                               project_info["name"])
+                               repo_dir)
         with repo(project_info["repository"], repo_name, project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
             csv_file = env_name+".csv"
