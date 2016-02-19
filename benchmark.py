@@ -11,6 +11,9 @@ import time
 import json
 import csv
 
+import logging
+logging.basicConfig(filename="benchmark.log", level=logging.DEBUG)
+
 from argparse import ArgumentParser
 
 from contextlib import contextmanager
@@ -20,12 +23,9 @@ benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 # default configuration options
 conf = {
     "working_dir": benchmark_dir,
-    "repo_dir":    os.path.join(benchmark_dir, "repos"),
+    "repo_dir":    "repos",
     "remove_csv":  False
 }
-
-import logging
-logging.basicConfig(filename='benchmark.log',level=logging.DEBUG)
 
 
 class BenchmarkDatabase(object):
@@ -164,7 +164,7 @@ def repo(repository, branch=None):
     """
     prev_dir = os.getcwd()
 
-    repo_dir = os.path.expanduser(conf["repo_dir"])
+    repo_dir = conf["repo_dir"]
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
     logging.info('cd into repo dir %s from  %s' % (repo_dir, prev_dir))
@@ -187,11 +187,14 @@ def repo(repository, branch=None):
         os.chdir(prev_dir)
 
 
-def benchmark(project_info, force=False):
+def benchmark(project_info, force=False, keep_env=False):
     current_commits = {}
     update_triggered_by = []
 
     db = BenchmarkDatabase(project_info["name"])
+
+    # remove any previous repo_dir for this project so we start fresh
+    remove_repo_dir(conf["repo_dir"])
 
     # determine if a new benchmark run is needed, this may be due to the
     # project repo or a trigger repo being updated or the force option
@@ -237,8 +240,6 @@ def benchmark(project_info, force=False):
         with repo(project_info["repository"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
 
-            rc, out, err = get_exitcode_stdout_stderr("pip list")
-            print(out)
             rc, out, err = get_exitcode_stdout_stderr("pip freeze")
             print(out)
 
@@ -249,8 +250,7 @@ def benchmark(project_info, force=False):
                 os.remove(csv_file)
 
         db.dump_benchmark_data()
-        remove_env(env_name)
-        # TODO: should also remove the repo to make sure we have a clean one next time
+        remove_env(env_name, keep_env)
 
 
 def clone_repo(repository, branch):
@@ -339,7 +339,7 @@ def activate_env(env_name, triggers, dependencies):
             code, out, err = get_exitcode_stdout_stderr("python setup.py install")
 
 
-def remove_env(env_name):
+def remove_env(env_name, keep_env):
     """
     Deactivate and remove a conda env at the end of a benchmarking run.
     """
@@ -351,9 +351,21 @@ def remove_env(env_name):
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
 
-    conda_delete = "conda env remove -y --name " + env_name
-    code, out, err = get_exitcode_stdout_stderr(conda_delete)
-    return code
+    if(not keep_env):
+        conda_delete = "conda env remove -y --name " + env_name
+        code, out, err = get_exitcode_stdout_stderr(conda_delete)
+        return code
+
+
+def remove_repo_dir(repo_dir):
+    """
+    Remove repo directory before a benchmarking run.
+    Will force fresh cloning and avoid branch issues.
+    """
+    remove_cmd = "rm -rf " + repo_dir
+
+    if os.path.exists(repo_dir):
+        code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
 
 def run_benchmarks(csv_file):
@@ -423,6 +435,9 @@ def _get_parser():
     parser.add_argument('-f', '--force', action='store_true', dest='force',
                         help='do the benchmark even if nothing has changed')
 
+    parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
+                        help='keep the created conda env after execution (usually for troubleshooting purposes)')
+
     return parser
 
 
@@ -447,13 +462,18 @@ def main(args=None):
             else:
                 project_file = project+".json"
             project_info = read_json(project_file)
-            project_info["name"] = os.path.basename(project_file).rsplit('.', 1)[0]
+            project_name = os.path.basename(project_file).rsplit('.', 1)[0]
+            project_info["name"] = project_name
+
+            # use a different repo directory for each project
+            conf["repo_dir"] = os.path.expanduser(
+                os.path.join(conf["working_dir"], (project_name+"_repos")))
 
             # run benchmark or plot as requested
             if options.plot:
-                plot_benchmark_data(project_info["name"], options.plot)
+                plot_benchmark_data(project_name, options.plot)
             else:
-                benchmark(project_info, force=options.force)
+                benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
 
 if __name__ == '__main__':
