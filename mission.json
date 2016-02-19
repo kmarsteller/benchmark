@@ -3,13 +3,18 @@
     "branch":     "work",
 
     "triggers": [
+        "git@github.com:openmdao/OpenMDAO",
         "git@github.com:openmdao/MBI",
         "https://bitbucket.org/mdolab/pyoptsparse"
     ],
 
     "dependencies": [
+        "numpy==1.10.2",
+        "scipy==0.16.1",
+        "networkx",
+        "sqlitedict",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc@v3.5",
-        "git+https://bitbucket.org/petsc/petsc4py@3.5"
+        "/home/swryan/dev/petsc",
+        "/home/swryan/dev/petsc4py"
     ]
 }
