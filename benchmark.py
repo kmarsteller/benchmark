@@ -94,10 +94,13 @@ class BenchmarkDatabase(object):
         with open(filename, 'r') as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
-                spec = row[1].rsplit(':', 1)[1]
                 logging.info('INSERTING BenchmarkData %s' % str(row))
-                self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
-                data_added = True
+                try:
+                    spec = row[1].rsplit(':', 1)[1]
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
+                    data_added = True
+                except IndexError:
+                    print("Invalid benchmark specification found in results:\n %s" % str(row))
 
         if data_added:
             self.update_commits(commits, row[0])  # row[0] is the timestamp for this set of benchmark data
