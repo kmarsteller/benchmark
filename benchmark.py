@@ -10,9 +10,7 @@ import sqlite3
 import time
 import json
 import csv
-
 import logging
-logging.basicConfig(filename="benchmark.log", level=logging.DEBUG)
 
 from argparse import ArgumentParser
 
@@ -51,11 +49,18 @@ class BenchmarkDatabase(object):
 
     def _ensure_benchmark_data(self):
         """
-        if the bechmark data table has not been created yet, create it
+        if the benchmark data tables have not been created yet, create them
         """
+        # a table containing the status, elapsed time and memory usage for each
+        # benchmark in a run
         self.cursor.execute("CREATE TABLE if not exists BenchmarkData"
                             " (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL,"
                             "  PRIMARY KEY (DateTime, Spec))")
+
+        # a table containing the versions of all installed dependencies for a run
+        self.cursor.execute("CREATE TABLE if not exists InstalledDeps"
+                            " (DateTime INT,  InstalledDep TEXT, Version TEXT,"
+                            "  PRIMARY KEY (DateTime, InstalledDep))")
 
     def get_last_commit(self, trigger):
         """
@@ -82,7 +87,7 @@ class BenchmarkDatabase(object):
             self.cursor.execute('INSERT OR REPLACE INTO LastCommits VALUES (?, ?)', (trigger, str(commit)))
             self.cursor.execute('INSERT INTO Commits VALUES (?, ?, ?)', (timestamp, trigger, str(commit)))
 
-    def add_benchmark_data(self, commits, filename):
+    def add_benchmark_data(self, commits, filename, installed):
         """
         Insert benchmarks results into BenchmarkData table.
         Create the table if it doesn't already exist.
@@ -103,7 +108,10 @@ class BenchmarkDatabase(object):
                     print("Invalid benchmark specification found in results:\n %s" % str(row))
 
         if data_added:
-            self.update_commits(commits, row[0])  # row[0] is the timestamp for this set of benchmark data
+            timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
+            self.update_commits(commits, timestamp)
+            for dep, ver in installed.items():
+                self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
 
     def dump_benchmark_data(self):
         with open(self.dbname+'.sql', 'w') as f:
@@ -197,7 +205,7 @@ def benchmark(project_info, force=False, keep_env=False):
     remove_repo_dir(conf["repo_dir"])
 
     # determine if a new benchmark run is needed, this may be due to the
-    # project repo or a trigger repo being updated or the force option
+    # project repo or a trigger repo being updated or the `force` option
     if force:
         update_triggered_by.append('force')
     else:
@@ -240,12 +248,16 @@ def benchmark(project_info, force=False, keep_env=False):
         with repo(project_info["repository"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
 
-            rc, out, err = get_exitcode_stdout_stderr("pip freeze")
-            print(out)
+            installed_deps = {}
+            rc, out, err = get_exitcode_stdout_stderr("pip list")
+            for line in out.split('\n'):
+                name_ver = line.split(" ", 1)
+                if len(name_ver) == 2:
+                    installed_deps[name_ver[0]] = name_ver[1]
 
             csv_file = env_name+".csv"
             run_benchmarks(csv_file)
-            db.add_benchmark_data(current_commits, csv_file)
+            db.add_benchmark_data(current_commits, csv_file, installed_deps)
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
