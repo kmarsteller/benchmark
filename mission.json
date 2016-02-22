@@ -9,12 +9,12 @@
     ],
 
     "dependencies": [
-        "numpy==1.10.2",
-        "scipy==0.16.1",
+        "numpy",
+        "scipy",
         "networkx",
         "sqlitedict",
         "mpi4py",
-        "/home/swryan/dev/petsc",
-        "/home/swryan/dev/petsc4py"
+        "git+https://bitbucket.org/petsc/petsc@v3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.5"
     ]
 }

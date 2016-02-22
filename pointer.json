@@ -1,10 +1,9 @@
 {
-    "repository": "git@github.com:swryan/pointer",
-    "branch":     "work",
+    "repository": "git@github.com:openmdao/pointer",
+    "branch":     "benchmarks",
 
     "triggers": [
-        "git@github.com:openmdao/OpenMDAO",
-        "https://bitbucket.org/mdolab/pyoptsparse"
+        "git@github.com:openmdao/OpenMDAO"
     ],
 
     "dependencies": [
