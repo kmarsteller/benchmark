@@ -10,7 +10,9 @@ import sqlite3
 import time
 import json
 import csv
+
 import logging
+logging.basicConfig(filename="benchmark.log", level=logging.DEBUG)
 
 from argparse import ArgumentParser
 
