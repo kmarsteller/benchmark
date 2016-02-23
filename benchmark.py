@@ -24,6 +24,7 @@ benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 conf = {
     "working_dir": benchmark_dir,
     "repo_dir":    "repos",
+    "logs_dir":    "logs",
     "remove_csv":  False
 }
 
@@ -201,6 +202,10 @@ def benchmark(project_info, force=False, keep_env=False):
     current_commits = {}
     update_triggered_by = []
 
+    timestr = time.strftime("%Y%m%d-%H%M%S")
+    run_name = project_info["name"] + "_" + timestr
+    init_log(run_name)
+
     db = BenchmarkDatabase(project_info["name"])
 
     # remove any previous repo_dir for this project so we start fresh
@@ -244,8 +249,8 @@ def benchmark(project_info, force=False, keep_env=False):
         triggers = project_info.get("triggers", [])
         dependencies = project_info.get("dependencies", [])
 
-        env_name = create_env(project_info["name"], dependencies)
-        activate_env(env_name, triggers, dependencies)
+        create_env(run_name, dependencies)
+        activate_env(run_name, triggers, dependencies)
 
         with repo(project_info["repository"], project_info.get("branch", None)):
             get_exitcode_stdout_stderr("pip install -e .")
@@ -257,14 +262,14 @@ def benchmark(project_info, force=False, keep_env=False):
                 if len(name_ver) == 2:
                     installed_deps[name_ver[0]] = name_ver[1]
 
-            csv_file = env_name+".csv"
+            csv_file = run_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file, installed_deps)
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
         db.dump_benchmark_data()
-        remove_env(env_name, keep_env)
+        remove_env(run_name, keep_env)
 
 
 def clone_repo(repository, branch):
@@ -306,20 +311,17 @@ def get_current_commit():
     return out
 
 
-def create_env(project, dependencies):
+def create_env(env_name, dependencies):
     """
     Create a conda env.
     """
-    timestr = time.strftime("%Y%m%d-%H%M%S")
-    env_name = project + "_" + timestr
-    conda_create = "conda create -y -n " + env_name + " python=2.7 pip psutil nomkl"
+    pkgs = "python=2.7 pip mercurial psutil nomkl"
+    conda_create = "conda create -y -n " + env_name + " " + pkgs
     for dep in dependencies:
         if dep.startswith("numpy") or dep.startswith("scipy"):
             conda_create = conda_create + " " + dep
     code, out, err = get_exitcode_stdout_stderr(conda_create)
-    if (code == 0):
-        return env_name
-    else:
+    if (code != 0):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
 
@@ -432,6 +434,26 @@ def plot_benchmark_data(project, spec):
         pyplot.show()
     except ImportError:
         raise RuntimeError("numpy and matplotlib are required to plot benchmark data.")
+
+
+def init_log(name):
+    log = logging.getLogger()
+
+    # remove old handler(s)
+    for hdlr in log.handlers:
+        log.removeHandler(hdlr)
+
+    # set the new handler
+    logs_dir = os.path.expanduser(os.path.join(conf["logs_dir"]))
+    if not os.path.exists(logs_dir):
+        os.makedirs(logs_dir)
+    filename = os.path.join(logs_dir, name+".log")
+    fh = logging.FileHandler(filename)
+
+    format_str = '%(asctime)s %(name)s %(levelname)s: %(message)s'
+    fh.formatter = logging.Formatter(format_str)
+
+    log.addHandler(fh)
 
 
 def _get_parser():
