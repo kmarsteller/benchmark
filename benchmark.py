@@ -12,7 +12,7 @@ import json
 import csv
 
 import logging
-logging.basicConfig(filename="benchmark.log", level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 from argparse import ArgumentParser
 
