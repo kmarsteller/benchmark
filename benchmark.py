@@ -154,7 +154,9 @@ class BenchmarkDatabase(object):
                 data.setdefault('memory', []).append(row[4])
 
             if not data:
-                raise RuntimeError("No data to plot for %s" % spec)
+                logging.warn("No data to plot for %s" % spec)
+                print("No data to plot for %s" % spec)
+                return
 
             timestamp = np.array(data['timestamp'])
             elapsed   = np.array(data['elapsed'])
@@ -166,12 +168,14 @@ class BenchmarkDatabase(object):
             a1.plot(x, elapsed, 'b-')
             a1.set_xlabel('run#')
             a1.set_ylabel('elapsed', color='b')
+            a1.set_ylim(0)
             for tl in a1.get_yticklabels():
                 tl.set_color('b')
 
             a2 = a1.twinx()
             a2.plot(x, maxrss, 'r-')
             a2.set_ylabel('maxrss', color='r')
+            a2.set_ylim(0)
             for tl in a2.get_yticklabels():
                 tl.set_color('r')
 
@@ -183,7 +187,8 @@ class BenchmarkDatabase(object):
                 pyplot.savefig(filename)
 
         except ImportError:
-            raise RuntimeError("numpy and matplotlib are required to plot benchmark data.")
+            logging.info("numpy and matplotlib are required to plot benchmark data.")
+            print("numpy and matplotlib are required to plot benchmark data.")
 
         return filename
 
@@ -485,7 +490,8 @@ def post_to_slack(name, update_triggered_by, filename, images):
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
-        raise RuntimeError("Could not post msg to slack", code, out, err)
+        logging.warn("Could not post msg to slack", code, out, err)
+        print("Could not post msg to slack", code, out, err)
 
     channel = conf["slack"]["channel"]
     token   = conf["slack"]["token"]
@@ -499,7 +505,8 @@ def post_to_slack(name, update_triggered_by, filename, images):
             cmd = cmd_fmt % (img, img, channel, token, cacert, capath)
             code, out, err = get_exitcode_stdout_stderr(cmd)
         if code:
-            raise RuntimeError("Could not post image to slack", code, out, err)
+            logging.warn("Could not post image to slack", code, out, err)
+            print("Could not post image to slack", code, out, err)
 
 
 def init_log(name):
