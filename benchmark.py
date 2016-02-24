@@ -265,6 +265,8 @@ def benchmark(project_info, force=False, keep_env=False):
             csv_file = run_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file, installed_deps)
+            if "slack_hooks" in conf:
+                post_to_slack(project_info["name"], update_triggered_by, csv_file)
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
@@ -434,6 +436,32 @@ def plot_benchmark_data(project, spec):
         pyplot.show()
     except ImportError:
         raise RuntimeError("numpy and matplotlib are required to plot benchmark data.")
+
+
+def post_to_slack(name, update_triggered_by, filename):
+    msg = "*%s* benchmark tiggered by " % name
+    if len(update_triggered_by) == 1 and "force" in update_triggered_by:
+        msg = msg + "force:\n"
+    else:
+        links = ["<%s>" % url.replace("git@github.com:", "https://github.com/") for url in update_triggered_by]
+        print(links)
+        msg = msg + "updates to: " + ", ".join(links) + "\n"
+
+    with open(filename, 'r') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            try:
+                spec = row[1].rsplit(':', 1)[1]
+                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f\n" % (spec, row[2], float(row[3]), float(row[4]))
+            except IndexError:
+                print("Invalid benchmark specification found in results:\n %s" % str(row))
+
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"" + msg + "\"}' " \
+        + conf["slack_hooks"]["text"]
+
+    code, out, err = get_exitcode_stdout_stderr(cmd)
+    if code:
+        raise RuntimeError("Could not post msg to slack", code, out, err)
 
 
 def init_log(name):
