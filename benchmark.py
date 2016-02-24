@@ -121,6 +121,72 @@ class BenchmarkDatabase(object):
             for line in self.conn.iterdump():
                 f.write('%s\n' % line)
 
+    def plot_all(self, show=False, save=True):
+        self._ensure_benchmark_data()
+
+        specs = []
+        for row in self.cursor.execute("SELECT DISTINCT Spec FROM BenchmarkData"):
+            specs.append(row[0])
+
+        filenames = []
+        for spec in specs:
+            filenames.append(self.plot_benchmark_data(spec, show=show, save=save))
+
+        return filenames
+
+    def plot_benchmark_data(self, spec=None, show=True, save=False):
+        logging.info('plot: %s' % spec)
+
+        self._ensure_benchmark_data()
+
+        filename = None
+
+        try:
+            import numpy as np
+            from matplotlib import pyplot
+
+            data = {}
+            for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
+                logging.info('row: %s' % str(row))
+                data.setdefault('timestamp', []).append(row[0])
+                data.setdefault('status', []).append(row[2])
+                data.setdefault('elapsed', []).append(row[3])
+                data.setdefault('memory', []).append(row[4])
+
+            if not data:
+                raise RuntimeError("No data to plot for %s" % spec)
+
+            timestamp = np.array(data['timestamp'])
+            elapsed   = np.array(data['elapsed'])
+            maxrss    = np.array(data['memory'])
+
+            fig, a1 = pyplot.subplots()
+            x = np.array(range(len(timestamp)))
+
+            a1.plot(x, elapsed, 'b-')
+            a1.set_xlabel('run#')
+            a1.set_ylabel('elapsed', color='b')
+            for tl in a1.get_yticklabels():
+                tl.set_color('b')
+
+            a2 = a1.twinx()
+            a2.plot(x, maxrss, 'r-')
+            a2.set_ylabel('maxrss', color='r')
+            for tl in a2.get_yticklabels():
+                tl.set_color('r')
+
+            pyplot.title(spec)
+            if show:
+                pyplot.show()
+            if save:
+                filename = spec+'.png'
+                pyplot.savefig(filename)
+
+        except ImportError:
+            raise RuntimeError("numpy and matplotlib are required to plot benchmark data.")
+
+        return filename
+
 
 def read_json(filename):
     """
@@ -265,8 +331,9 @@ def benchmark(project_info, force=False, keep_env=False):
             csv_file = run_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file, installed_deps)
-            if "slack_hooks" in conf:
-                post_to_slack(project_info["name"], update_triggered_by, csv_file)
+            if "slack" in conf:
+                images = db.plot_all()
+                post_to_slack(project_info["name"], update_triggered_by, csv_file, images)
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
@@ -395,56 +462,13 @@ def run_benchmarks(csv_file):
     print(code, out, err)
 
 
-def plot_benchmark_data(project, spec):
-    logging.info('plot: %s, %s' % (project, spec))
-    try:
-        import numpy as np
-        from matplotlib import pyplot
-
-        db = BenchmarkDatabase(project)
-
-        c = db.cursor
-
-        data = {}
-        for row in c.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
-            logging.info('row: %s' % str(row))
-            data.setdefault('timestamp', []).append(row[0])
-            data.setdefault('status', []).append(row[2])
-            data.setdefault('elapsed', []).append(row[3])
-            data.setdefault('memory', []).append(row[4])
-
-        timestamp = np.array(data['timestamp'])
-        elapsed   = np.array(data['elapsed'])
-        maxrss    = np.array(data['memory'])
-
-        fig, a1 = pyplot.subplots()
-        x = np.array(range(len(timestamp)))
-
-        a1.plot(x, elapsed, 'b-')
-        a1.set_xlabel('run#')
-        a1.set_ylabel('elapsed', color='b')
-        for tl in a1.get_yticklabels():
-            tl.set_color('b')
-
-        a2 = a1.twinx()
-        a2.plot(x, maxrss, 'r-')
-        a2.set_ylabel('maxrss', color='r')
-        for tl in a2.get_yticklabels():
-            tl.set_color('r')
-
-        pyplot.title(spec)
-        pyplot.show()
-    except ImportError:
-        raise RuntimeError("numpy and matplotlib are required to plot benchmark data.")
-
-
-def post_to_slack(name, update_triggered_by, filename):
+def post_to_slack(name, update_triggered_by, filename, images):
     msg = "*%s* benchmark tiggered by " % name
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         msg = msg + "force:\n"
     else:
-        links = ["<%s>" % url.replace("git@github.com:", "https://github.com/") for url in update_triggered_by]
-        print(links)
+        links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
+            for url in update_triggered_by]
         msg = msg + "updates to: " + ", ".join(links) + "\n"
 
     with open(filename, 'r') as csvfile:
@@ -456,12 +480,26 @@ def post_to_slack(name, update_triggered_by, filename):
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
 
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"" + msg + "\"}' " \
-        + conf["slack_hooks"]["text"]
+    url = conf["slack"]["message"]
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"%s\"}' %s"  % (msg, url)
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
         raise RuntimeError("Could not post msg to slack", code, out, err)
+
+    channel = conf["slack"]["channel"]
+    token   = conf["slack"]["token"]
+    cacert  = conf["slack"]["cacert"]
+    capath  = conf["slack"]["capath"]
+
+    cmd_fmt = "curl -F file=@%s -F filetype=png -F filename=%s -F channels=%s " \
+            + "-F token=%s --cacert %s --capath %s https://slack.com/api/files.upload"
+    for img in images:
+        if img:
+            cmd = cmd_fmt % (img, img, channel, token, cacert, capath)
+            code, out, err = get_exitcode_stdout_stderr(cmd)
+        if code:
+            raise RuntimeError("Could not post image to slack", code, out, err)
 
 
 def init_log(name):
@@ -535,7 +573,11 @@ def main(args=None):
 
             # run benchmark or plot as requested
             if options.plot:
-                plot_benchmark_data(project_name, options.plot)
+                db = BenchmarkDatabase(project_name)
+                if options.plot == 'all':
+                    db.plot_all()
+                else:
+                    db.plot_benchmark_data(options.plot)
             else:
                 benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
