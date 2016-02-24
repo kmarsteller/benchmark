@@ -389,7 +389,7 @@ def create_env(env_name, dependencies):
     """
     Create a conda env.
     """
-    pkgs = "python=2.7 pip mercurial psutil nomkl"
+    pkgs = "python=2.7 pip mercurial psutil nomkl matplotlib"
     conda_create = "conda create -y -n " + env_name + " " + pkgs
     for dep in dependencies:
         if dep.startswith("numpy") or dep.startswith("scipy"):
