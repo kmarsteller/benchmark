@@ -215,6 +215,7 @@ class BenchmarkDatabase(object):
             logging.info("numpy and matplotlib are required to plot benchmark data.")
             print("numpy and matplotlib are required to plot benchmark data.")
 
+        code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
         return filename
 
 
