@@ -366,7 +366,7 @@ def benchmark(project_info, force=False, keep_env=False):
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file, installed_deps)
 
-            # generate plots and upload if image location is provided
+            # generate plots if requested and upload if image location is provided
             images = conf.get("images")
             if conf["plot_history"]:
                 plots = db.plot_all()
@@ -383,7 +383,7 @@ def benchmark(project_info, force=False, keep_env=False):
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
-        # clean up environmant
+        # clean up environment
         remove_env(run_name, keep_env)
 
 
