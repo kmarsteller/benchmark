@@ -20,12 +20,26 @@ from contextlib import contextmanager
 
 benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 
+#
 # default configuration options
+#
 conf = {
+    # directories used during benchmarking
     "working_dir": benchmark_dir,
     "repo_dir":    "repos",
     "logs_dir":    "logs",
-    "remove_csv":  False
+
+    # remove benchmark data file after adding to database
+    "remove_csv":  False,
+
+    # generate a plot showing history of each benchmark
+    "plot_history": True,
+
+    # CA cert information needed by curl (defaults)
+    "ca": {
+        "cacert":  "/etc/ssl/certs/ca-certificates.crt",
+        "capath":  "/etc/ssl/certs"
+    },
 }
 
 
@@ -117,11 +131,17 @@ class BenchmarkDatabase(object):
                 self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
 
     def dump_benchmark_data(self):
+        """
+        dump database to SQL file
+        """
         with open(self.dbname+'.sql', 'w') as f:
             for line in self.conn.iterdump():
                 f.write('%s\n' % line)
 
     def plot_all(self, show=False, save=True):
+        """
+        generate a history plot of each benchmark
+        """
         self._ensure_benchmark_data()
 
         specs = []
@@ -135,6 +155,9 @@ class BenchmarkDatabase(object):
         return filenames
 
     def plot_benchmark_data(self, spec=None, show=True, save=False):
+        """
+        generate a history plot for a benchmark
+        """
         logging.info('plot: %s' % spec)
 
         self._ensure_benchmark_data()
@@ -257,9 +280,6 @@ def repo(repository, branch=None):
     repo_name = repository.split('/')[-1]
     if not os.path.isdir(repo_name):
         clone_repo(repository, branch)
-    else:
-        # TODO: could possibly be there but wrong branch?
-        pass
 
     logging.info('cd into repo %s' % repo_name)
     print('cd into repo %s' % repo_name)
@@ -272,6 +292,10 @@ def repo(repository, branch=None):
 
 
 def benchmark(project_info, force=False, keep_env=False):
+    """
+    determine if a project or any of it's trigger dependencies have
+    changed and run benchmarks if so
+    """
     current_commits = {}
     update_triggered_by = []
 
@@ -326,8 +350,10 @@ def benchmark(project_info, force=False, keep_env=False):
         activate_env(run_name, triggers, dependencies)
 
         with repo(project_info["repository"], project_info.get("branch", None)):
+            # install project
             get_exitcode_stdout_stderr("pip install -e .")
 
+            # get list of installed dependencies
             installed_deps = {}
             rc, out, err = get_exitcode_stdout_stderr("pip list")
             for line in out.split('\n'):
@@ -335,16 +361,29 @@ def benchmark(project_info, force=False, keep_env=False):
                 if len(name_ver) == 2:
                     installed_deps[name_ver[0]] = name_ver[1]
 
+            # run benchmarks and add data to database
             csv_file = run_name+".csv"
             run_benchmarks(csv_file)
             db.add_benchmark_data(current_commits, csv_file, installed_deps)
+
+            # generate plots and upload if image location is provided
+            images = conf.get("images")
+            if conf["plot_history"]:
+                plots = db.plot_all()
+                if images:
+                    upload(plots, conf["images"]["upload"])
+
+            # if slack info is provided, post message to slack
             if "slack" in conf:
-                images = db.plot_all()
-                post_to_slack(project_info["name"], update_triggered_by, csv_file, images)
+                if images:
+                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
+                else:
+                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
+
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
-        db.dump_benchmark_data()
+        # clean up environmant
         remove_env(run_name, keep_env)
 
 
@@ -389,9 +428,9 @@ def get_current_commit():
 
 def create_env(env_name, dependencies):
     """
-    Create a conda env.
+    Create a conda env
     """
-    pkgs = "python=2.7 pip mercurial psutil nomkl matplotlib"
+    pkgs = "python=2.7 pip mercurial psutil nomkl matplotlib curl"
     conda_create = "conda create -y -n " + env_name + " " + pkgs
     for dep in dependencies:
         if dep.startswith("numpy") or dep.startswith("scipy"):
@@ -469,51 +508,80 @@ def run_benchmarks(csv_file):
     print(code, out, err)
 
 
-def post_to_slack(name, update_triggered_by, filename, images):
+def upload(files, dest):
+    """
+    upload files to destination via scp
+    """
+    cmd = "scp %s %s" % (" ".join(files), dest)
+    code, out, err = get_exitcode_stdout_stderr(cmd)
+
+
+def post_message_to_slack(name, update_triggered_by, filename, plots=None):
+    """
+    post a message to slack detailing benchmark results
+    """
     msg = "*%s* benchmark tiggered by " % name
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         msg = msg + "force:\n"
     else:
         links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-            for url in update_triggered_by]
+                    for url in update_triggered_by]
         msg = msg + "updates to: " + ", ".join(links) + "\n"
+
+    if plots:
+        image_url = conf["images"]["url"]
 
     with open(filename, 'r') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
             try:
                 spec = row[1].rsplit(':', 1)[1]
-                link = "<http://openmdao.org/benchmark_images/BenchmarkFlatMoonSLSQP.benchmark_flatmoon_5seg.png|Link>"
-                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f \t %s\n" % (spec, row[2], float(row[3]), float(row[4]), link)
+                if plots:
+                    plot = "<%s/%s.png|History>" % (image_url, spec)
+                else:
+                    plot = ""
+                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f \t %s\n" \
+                          % (spec, row[2], float(row[3]), float(row[4]), plot)
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
 
     url = conf["slack"]["message"]
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"%s\"}' %s"  % (msg, url)
+    cacert  = conf["ca"]["cacert"]
+    capath  = conf["ca"]["capath"]
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"%s\", \"unfurl_links\": \"false\"}' %s " \
+          "--cacert %s --capath %s "  % (msg, url, cacert, capath)
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
         logging.warn("Could not post msg to slack", code, out, err)
         print("Could not post msg to slack", code, out, err)
 
-    if False:
-        channel = conf["slack"]["channel"]
-        token   = conf["slack"]["token"]
-        cacert  = conf["slack"]["cacert"]
-        capath  = conf["slack"]["capath"]
 
-        cmd_fmt = "curl -F file=@%s -F filetype=png -F filename=%s -F channels=%s " \
-                + "-F token=%s --cacert %s --capath %s https://slack.com/api/files.upload"
-        for img in images:
-            if img:
-                cmd = cmd_fmt % (img, img, channel, token, cacert, capath)
-                code, out, err = get_exitcode_stdout_stderr(cmd)
-            if code:
-                logging.warn("Could not post image to slack", code, out, err)
-                print("Could not post image to slack", code, out, err)
+def post_file_to_slack(filename):
+    """
+    post a file to slack
+    """
+    channel = conf["slack"]["channel"]
+    token   = conf["slack"]["token"]
+
+    cacert  = conf["ca"]["cacert"]
+    capath  = conf["ca"]["capath"]
+
+    cmd_fmt = "curl -F file=@%s -F filename=%s -F channels=%s -F token=%s " \
+            + "--cacert %s --capath %s https://slack.com/api/files.upload"
+
+    cmd = cmd_fmt % (filename, filename, channel, token, cacert, capath)
+    code, out, err = get_exitcode_stdout_stderr(cmd)
+
+    if code:
+        logging.warn("Could not post file to slack", code, out, err)
+        print("Could not post file to slack", code, out, err)
 
 
 def init_log(name):
+    """
+    initialize logging file with given name
+    """
     log = logging.getLogger()
 
     # remove old handler(s)
@@ -534,7 +602,9 @@ def init_log(name):
 
 
 def _get_parser():
-    """Returns a parser to handle command line args."""
+    """
+    Returns a parser to handle command line args.
+    """
 
     parser = ArgumentParser()
     parser.usage = "benchmark [options]"
@@ -555,6 +625,9 @@ def _get_parser():
 
 
 def main(args=None):
+    """
+    process command line arguments and perform requested task
+    """
     if args is None:
         args = sys.argv[1:]
 
