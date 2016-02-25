@@ -481,7 +481,8 @@ def post_to_slack(name, update_triggered_by, filename, images):
         for row in reader:
             try:
                 spec = row[1].rsplit(':', 1)[1]
-                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f\n" % (spec, row[2], float(row[3]), float(row[4]))
+                link = "<http://openmdao.org/benchmark_images/BenchmarkFlatMoonSLSQP.benchmark_flatmoon_5seg.png|Link>"
+                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f \t %s\n" % (spec, row[2], float(row[3]), float(row[4]), link)
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
 
@@ -493,20 +494,21 @@ def post_to_slack(name, update_triggered_by, filename, images):
         logging.warn("Could not post msg to slack", code, out, err)
         print("Could not post msg to slack", code, out, err)
 
-    channel = conf["slack"]["channel"]
-    token   = conf["slack"]["token"]
-    cacert  = conf["slack"]["cacert"]
-    capath  = conf["slack"]["capath"]
+    if False:
+        channel = conf["slack"]["channel"]
+        token   = conf["slack"]["token"]
+        cacert  = conf["slack"]["cacert"]
+        capath  = conf["slack"]["capath"]
 
-    cmd_fmt = "curl -F file=@%s -F filetype=png -F filename=%s -F channels=%s " \
-            + "-F token=%s --cacert %s --capath %s https://slack.com/api/files.upload"
-    for img in images:
-        if img:
-            cmd = cmd_fmt % (img, img, channel, token, cacert, capath)
-            code, out, err = get_exitcode_stdout_stderr(cmd)
-        if code:
-            logging.warn("Could not post image to slack", code, out, err)
-            print("Could not post image to slack", code, out, err)
+        cmd_fmt = "curl -F file=@%s -F filetype=png -F filename=%s -F channels=%s " \
+                + "-F token=%s --cacert %s --capath %s https://slack.com/api/files.upload"
+        for img in images:
+            if img:
+                cmd = cmd_fmt % (img, img, channel, token, cacert, capath)
+                code, out, err = get_exitcode_stdout_stderr(cmd)
+            if code:
+                logging.warn("Could not post image to slack", code, out, err)
+                print("Could not post image to slack", code, out, err)
 
 
 def init_log(name):
