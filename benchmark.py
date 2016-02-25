@@ -152,7 +152,7 @@ class BenchmarkDatabase(object):
         for spec in specs:
             filenames.append(self.plot_benchmark_data(spec, show=show, save=save))
 
-        return filenames
+        return [f for f in filenames if f is not None]
 
     def plot_benchmark_data(self, spec=None, show=True, save=False):
         """
@@ -431,7 +431,7 @@ def create_env(env_name, dependencies):
     """
     Create a conda env
     """
-    pkgs = "python=2.7 pip mercurial psutil nomkl matplotlib curl"
+    pkgs = "python=2.7 pip mercurial swig psutil nomkl matplotlib curl"
     conda_create = "conda create -y -n " + env_name + " " + pkgs
     for dep in dependencies:
         if dep.startswith("numpy") or dep.startswith("scipy"):
