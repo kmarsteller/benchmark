@@ -541,7 +541,7 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
                     plot = "<%s/%s.png|History>" % (image_url, spec)
                 else:
                     plot = ""
-                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %8.2f \t %s\n" \
+                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
                           % (spec, row[2], float(row[3]), float(row[4]), plot)
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
@@ -549,7 +549,8 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     url = conf["slack"]["message"]
     cacert  = conf["ca"]["cacert"]
     capath  = conf["ca"]["capath"]
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"%s\", \"unfurl_links\": \"false\"}' %s " \
+    cmd = "curl -X POST -H 'Content-type: application/json' " \
+          "--data '{\"text\":\"%s\", \"unfurl_links\": \"false\", \"unfurl_media\": \"false\"}' %s " \
           "--cacert %s --capath %s "  % (msg, url, cacert, capath)
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
