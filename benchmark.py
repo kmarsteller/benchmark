@@ -548,8 +548,8 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
                 rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
                               % (spec, row[2], float(row[3]), float(row[4]), plot)
 
-                name.append(spec)
-                rslt.append("%s\t\t%8.2fs\t\t%8.2fmb\t\t%s" % (row[2], float(row[3]), float(row[4]), plot))
+                name.append("```%s```" % spec)
+                rslt.append("```%s\t%8.2fs\t%8.2fmb\t[%s]```" % (row[2], float(row[3]), float(row[4]), plot))
                 if row[2] != "OK":
                     color = "danger"
             except IndexError:
@@ -563,16 +563,26 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
                 "pretext":  pretext,
                 "fields": [
                     { "title": "Benchmark", "value": "\n".join(name), "short": "true"},
-                    { "title": "Result",    "value": "\n".join(rslt), "short": "true"},
-                ]
+                    { "title": "Results",   "value": "\n".join(rslt), "short": "true"},
+                ],
+                "mrkdwn_in": ["pretext", "fields"]
             }
         ],
         "unfurl_links": "false",
         "unfurl_media": "false"
     }
+
     url = conf["slack"]["message"]
     msg = json.dumps(payload)
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s"  % (msg, url)
+
+    if "ca" in conf:
+        cacert  = conf["ca"]["cacert"]
+        capath  = conf["ca"]["capath"]
+        ca = "--cacert %s --capath %s "  % (cacert, capath)
+    else:
+        ca = ""
+
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s"  % (msg, url, ca)
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
