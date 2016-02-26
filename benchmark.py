@@ -521,17 +521,21 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
     post a message to slack detailing benchmark results
     """
-    msg = "*%s* benchmark tiggered by " % name
+    pretext = "*%s* benchmark tiggered by " % name
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
-        msg = msg + "force:\n"
+        pretext = pretext + "force:\n"
     else:
         links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-                    for url in update_triggered_by]
-        msg = msg + "updates to: " + ", ".join(links) + "\n"
+            for url in update_triggered_by]
+        pretext = pretext + "updates to: " + ", ".join(links) + "\n"
 
     if plots:
         image_url = conf["images"]["url"]
 
+    rows = ""
+    name = []
+    rslt = []
+    color = "good"
     with open(filename, 'r') as csvfile:
         reader = csv.reader(csvfile)
         for row in reader:
@@ -541,17 +545,44 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
                     plot = "<%s/%s.png|History>" % (image_url, spec)
                 else:
                     plot = ""
-                msg = msg + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
-                          % (spec, row[2], float(row[3]), float(row[4]), plot)
+                rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
+                              % (spec, row[2], float(row[3]), float(row[4]), plot)
+
+                name.append("```%s```" % spec)
+                rslt.append("```%s\t%8.2fs\t%8.2fmb\t[%s]```" % (row[2], float(row[3]), float(row[4]), plot))
+                if row[2] != "OK":
+                    color = "danger"
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
 
+    payload = {
+        "attachments": [
+            {
+                "fallback": pretext + rows,
+                "color":    color,
+                "pretext":  pretext,
+                "fields": [
+                    { "title": "Benchmark", "value": "\n".join(name), "short": "true"},
+                    { "title": "Results",   "value": "\n".join(rslt), "short": "true"},
+                ],
+                "mrkdwn_in": ["pretext", "fields"]
+            }
+        ],
+        "unfurl_links": "false",
+        "unfurl_media": "false"
+    }
+
     url = conf["slack"]["message"]
-    cacert  = conf["ca"]["cacert"]
-    capath  = conf["ca"]["capath"]
-    cmd = "curl -X POST -H 'Content-type: application/json' " \
-          "--data '{\"text\":\"%s\", \"unfurl_links\": \"false\", \"unfurl_media\": \"false\"}' %s " \
-          "--cacert %s --capath %s "  % (msg, url, cacert, capath)
+    msg = json.dumps(payload)
+
+    if "ca" in conf:
+        cacert  = conf["ca"]["cacert"]
+        capath  = conf["ca"]["capath"]
+        ca = "--cacert %s --capath %s "  % (cacert, capath)
+    else:
+        ca = ""
+
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s"  % (msg, url, ca)
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
