@@ -1,6 +1,6 @@
 {
     "repository": "git@github.com:openmdao/pointer",
-    "branch":     "benchmarks",
+    "branch":     "master",
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO"
