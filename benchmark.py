@@ -457,7 +457,7 @@ def activate_env(env_name, triggers, dependencies):
     os.environ["PATH"] = path
 
     # install testflo to do the benchmarking
-    get_exitcode_stdout_stderr("pip install git+https://github.com/swryan/testflo@work")
+    get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
 
     # dependencies are pip installed
     for dependency in dependencies:
@@ -526,7 +526,7 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         pretext = pretext + "force:\n"
     else:
         links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-            for url in update_triggered_by]
+                 for url in update_triggered_by]
         pretext = pretext + "updates to: " + ", ".join(links) + "\n"
 
     if plots:
@@ -542,14 +542,14 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
             try:
                 spec = row[1].rsplit(':', 1)[1]
                 if plots:
-                    plot = "<%s/%s.png|History>" % (image_url, spec)
+                    plot = "[<%s/%s.png|History>]" % (image_url, spec)
                 else:
                     plot = ""
                 rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
                               % (spec, row[2], float(row[3]), float(row[4]), plot)
 
                 name.append("```%s```" % spec)
-                rslt.append("```%s\t%8.2fs\t%8.2fmb\t[%s]```" % (row[2], float(row[3]), float(row[4]), plot))
+                rslt.append("```%s\t%8.2fs\t%8.2fmb\t%s```" % (row[2], float(row[3]), float(row[4]), plot))
                 if row[2] != "OK":
                     color = "danger"
             except IndexError:
