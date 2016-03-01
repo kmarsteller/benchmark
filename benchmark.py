@@ -417,12 +417,12 @@ def get_current_commit():
     commit_hg = "hg id -i"
 
     # pull latest commit from desired branch and get the commit ID
-    code, out, err = get_exitcode_stdout_stderr(pull_git)
+    code, out, err = get_exitcode_stdout_stderr(pull_hg)
     if (code is 0):
-        code, out, err = get_exitcode_stdout_stderr(commit_git)
-    else:
-        code, out, err = get_exitcode_stdout_stderr(pull_hg)
         code, out, err = get_exitcode_stdout_stderr(commit_hg)
+    else:
+        code, out, err = get_exitcode_stdout_stderr(pull_git)
+        code, out, err = get_exitcode_stdout_stderr(commit_git)
 
     return out
 
