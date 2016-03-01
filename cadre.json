@@ -1,0 +1,20 @@
+{
+    "repository": "git@github.com:swryan/mission-allocation",
+    "branch":     "work",
+
+    "triggers": [
+        "git@github.com:openmdao/OpenMDAO",
+        "git@github.com:openmdao/MBI",
+        "https://bitbucket.org/mdolab/pyoptsparse"
+    ],
+
+    "dependencies": [
+        "numpy",
+        "scipy",
+        "networkx",
+        "sqlitedict",
+        "mpi4py",
+        "git+https://bitbucket.org/petsc/petsc@v3.6",
+        "git+https://bitbucket.org/petsc/petsc4py@3.6.0"
+    ]
+}
