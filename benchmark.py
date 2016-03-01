@@ -193,14 +193,14 @@ class BenchmarkDatabase(object):
             a1.plot(x, elapsed, 'b-')
             a1.set_xlabel('run#')
             a1.set_ylabel('elapsed', color='b')
-            a1.set_ylim(0)
+            a1.set_ylim(0, max(elapsed)*1.15)
             for tl in a1.get_yticklabels():
                 tl.set_color('b')
 
             a2 = a1.twinx()
             a2.plot(x, maxrss, 'r-')
             a2.set_ylabel('maxrss', color='r')
-            a2.set_ylim(0)
+            a2.set_ylim(0, max(maxrss)*1.15)
             for tl in a2.get_yticklabels():
                 tl.set_color('r')
 
@@ -410,19 +410,21 @@ def get_current_commit():
     """
     Update and check the current repo for the most recent commit.
     """
-    pull_git = "git pull"
-    pull_hg = "hg pull; hg merge"
+    git_pull = "git pull"
+    git_commit = "git rev-parse HEAD"
 
-    commit_git = "git rev-parse HEAD"
-    commit_hg = "hg id -i"
+    hg_pull = "hg pull"
+    hg_merge = "hg merge"
+    hg_commit = "hg id -i"
 
     # pull latest commit from desired branch and get the commit ID
-    code, out, err = get_exitcode_stdout_stderr(pull_hg)
+    code, out, err = get_exitcode_stdout_stderr(hg_pull)
     if (code is 0):
-        code, out, err = get_exitcode_stdout_stderr(commit_hg)
+        code, out, err = get_exitcode_stdout_stderr(hg_merge)
+        code, out, err = get_exitcode_stdout_stderr(hg_commit)
     else:
-        code, out, err = get_exitcode_stdout_stderr(pull_git)
-        code, out, err = get_exitcode_stdout_stderr(commit_git)
+        code, out, err = get_exitcode_stdout_stderr(git_pull)
+        code, out, err = get_exitcode_stdout_stderr(git_commit)
 
     return out
 
