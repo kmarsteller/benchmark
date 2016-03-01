@@ -193,14 +193,14 @@ class BenchmarkDatabase(object):
             a1.plot(x, elapsed, 'b-')
             a1.set_xlabel('run#')
             a1.set_ylabel('elapsed', color='b')
-            a1.set_ylim(0)
+            a1.set_ylim(0, max(elapsed)*1.15)
             for tl in a1.get_yticklabels():
                 tl.set_color('b')
 
             a2 = a1.twinx()
             a2.plot(x, maxrss, 'r-')
             a2.set_ylabel('maxrss', color='r')
-            a2.set_ylim(0)
+            a2.set_ylim(0, max(maxrss)*1.15)
             for tl in a2.get_yticklabels():
                 tl.set_color('r')
 
