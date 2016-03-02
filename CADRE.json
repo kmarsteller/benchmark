@@ -1,11 +1,9 @@
 {
-    "repository": "git@github.com:swryan/mission-allocation",
-    "branch":     "work",
+    "repository": "git@github.com:OpenMDAO/CADRE",
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
-        "git@github.com:openmdao/MBI",
-        "https://bitbucket.org/mdolab/pyoptsparse"
+        "git@github.com:openmdao/MBI"
     ],
 
     "dependencies": [
@@ -15,7 +13,7 @@
         "sqlitedict",
         "mpi4py",
         "~/dev/petsc",
-        "~/dev/petsc4py"
+        "~/dev/petsc4py",
+        "~/dev/pyoptsparse"
     ]
 }
-

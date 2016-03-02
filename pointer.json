@@ -1,6 +1,5 @@
 {
     "repository": "git@github.com:openmdao/pointer",
-    "branch":     "master",
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO"
@@ -13,3 +12,4 @@
         "sqlitedict"
     ]
 }
+

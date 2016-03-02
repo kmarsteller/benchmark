@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 from __future__ import print_function
 
+import traceback
+
 from subprocess import Popen, PIPE
 
 import sys
@@ -168,7 +170,7 @@ class BenchmarkDatabase(object):
             import numpy as np
             import matplotlib
             matplotlib.use('Agg')
-            from matplotlib import pyplot
+            from matplotlib import pyplot, ticker
 
             data = {}
             for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
@@ -188,6 +190,7 @@ class BenchmarkDatabase(object):
             maxrss    = np.array(data['memory'])
 
             fig, a1 = pyplot.subplots()
+            a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
             x = np.array(range(len(timestamp)))
 
             a1.plot(x, elapsed, 'b-')
@@ -210,12 +213,13 @@ class BenchmarkDatabase(object):
             if save:
                 filename = spec+'.png'
                 pyplot.savefig(filename)
+                code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
             print("numpy and matplotlib are required to plot benchmark data.")
+            print(traceback.format_exc())
 
-        code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
         return filename
 
 
@@ -465,7 +469,7 @@ def activate_env(env_name, triggers, dependencies):
     for dependency in dependencies:
         # numpy and scipy are installed when the env is created
         if not dependency.startswith("numpy") and not dependency.startswith("scipy"):
-            code, out, err = get_exitcode_stdout_stderr("pip install " + dependency)
+            code, out, err = get_exitcode_stdout_stderr("pip install " + os.path.expanduser(dependency))
 
     # triggers are installed from a local copy of the repo via 'setup.py install'
     for trigger in triggers:
