@@ -4,8 +4,7 @@
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
-        "git@github.com:openmdao/MBI",
-        "https://bitbucket.org/mdolab/pyoptsparse"
+        "git@github.com:openmdao/MBI"
     ],
 
     "dependencies": [
@@ -14,7 +13,8 @@
         "networkx",
         "sqlitedict",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc@v3.6",
-        "git+https://bitbucket.org/petsc/petsc4py@3.6.0"
+        "~/dev/petsc",
+        "~/dev/petsc4py",
+        "~/dev/pyoptsparse"
     ]
 }
