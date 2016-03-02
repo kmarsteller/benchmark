@@ -469,7 +469,7 @@ def activate_env(env_name, triggers, dependencies):
     for dependency in dependencies:
         # numpy and scipy are installed when the env is created
         if not dependency.startswith("numpy") and not dependency.startswith("scipy"):
-            code, out, err = get_exitcode_stdout_stderr("pip install " + dependency)
+            code, out, err = get_exitcode_stdout_stderr("pip install " + os.path.expanduser(dependency))
 
     # triggers are installed from a local copy of the repo via 'setup.py install'
     for trigger in triggers:
