@@ -395,10 +395,9 @@ def benchmark(project_info, force=False, keep_env=False):
 
         #back up and transfer database
         dest = None
-        data = conf.get("data")
-        if data:
+        if conf.get("data"):
             dest = conf["data"]["upload"]
-        db_name = project_info["name"] +  ".db"
+        db_name = project_info["name"] + ".db"
         backup_db(db_name, dest)
 
 def clone_repo(repository, branch):
