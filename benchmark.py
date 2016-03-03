@@ -394,11 +394,10 @@ def benchmark(project_info, force=False, keep_env=False):
         remove_env(run_name, keep_env)
 
         #back up and transfer database
+        dest = None
         data = conf.get("data")
         if data:
             dest = conf["data"]["upload"]
-        else:
-            dest = "localhost"
         db_name = project_info["name"] +  ".db"
         backup_db(db_name, dest)
 
@@ -561,9 +560,8 @@ def backup_db(name, dest):
     create a local backup database, scp it to destination
     """
     backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
-    logging.info("Backup CMD: " + backup_cmd)
     code, out, err = get_exitcode_stdout_stderr(backup_cmd)
-    if (dest is not "localhost"):
+    if (dest):
         upload([name], dest)
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
