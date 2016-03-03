@@ -120,7 +120,7 @@ class BenchmarkDatabase(object):
             for row in reader:
                 logging.info('INSERTING BenchmarkData %s' % str(row))
                 try:
-                    spec = row[1].rsplit(':', 1)[1]
+                    spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
                     self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
                     data_added = True
                 except IndexError:
@@ -161,6 +161,7 @@ class BenchmarkDatabase(object):
         generate a history plot for a benchmark
         """
         logging.info('plot: %s' % spec)
+        print('plot: %s' % spec)
 
         self._ensure_benchmark_data()
 
@@ -207,11 +208,12 @@ class BenchmarkDatabase(object):
             for tl in a2.get_yticklabels():
                 tl.set_color('r')
 
-            pyplot.title(spec)
+            label = spec.rsplit(':', 1)[1]
+            pyplot.title(label.replace(".benchmark_", ": "))
             if show:
                 pyplot.show()
             if save:
-                filename = spec+'.png'
+                filename = spec.replace(":", "_") + ".png"
                 pyplot.savefig(filename)
                 code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
 
@@ -437,12 +439,28 @@ def create_env(env_name, dependencies):
     """
     Create a conda env
     """
-    pkgs = "python=2.7 pip mercurial swig psutil nomkl matplotlib curl"
-    conda_create = "conda create -y -n " + env_name + " " + pkgs
+    cmd = "conda create -y -n " + env_name
+
+    # handle python and numpy/scipy dependencies
     for dep in dependencies:
-        if dep.startswith("numpy") or dep.startswith("scipy"):
-            conda_create = conda_create + " " + dep
-    code, out, err = get_exitcode_stdout_stderr(conda_create)
+        if dep.startswith("python") or dep.startswith("numpy") or dep.startswith("scipy"):
+            cmd = cmd + " " + dep
+
+    # add other required packages
+    conda_pkgs = " ".join([
+        "pip",          # for installing dependencies
+        "git",          # for cloning git repos
+        "mercurial",    # for cloning hg repos
+        "swig",         # for building dependencies
+        "cython",       # for building dependencies
+        "psutil",       # for testflo benchmarking
+        "nomkl",        # TODO: experiment with this
+        "matplotlib",   # for plotting results
+        "curl"          # for uploading files & slack messages
+    ])
+    cmd = cmd + " " + conda_pkgs
+
+    code, out, err = get_exitcode_stdout_stderr(cmd)
     if (code != 0):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
@@ -463,18 +481,26 @@ def activate_env(env_name, triggers, dependencies):
     os.environ["PATH"] = path
 
     # install testflo to do the benchmarking
-    get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
+    code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
+    if (code != 0):
+        raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
     # dependencies are pip installed
     for dependency in dependencies:
         # numpy and scipy are installed when the env is created
-        if not dependency.startswith("numpy") and not dependency.startswith("scipy"):
+        if (not dependency.startswith("python=") and not dependency.startswith("numpy") and not dependency.startswith("scipy")):
             code, out, err = get_exitcode_stdout_stderr("pip install " + os.path.expanduser(dependency))
+            if (code != 0):
+                raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
 
     # triggers are installed from a local copy of the repo via 'setup.py install'
     for trigger in triggers:
         with repo(trigger):
             code, out, err = get_exitcode_stdout_stderr("python setup.py install")
+            if (code != 0):
+                raise RuntimeError("Failed to install", trigger, "to", env_name, code, out, err)
+
+    return True
 
 
 def remove_env(env_name, keep_env):
@@ -546,9 +572,10 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         reader = csv.reader(csvfile)
         for row in reader:
             try:
-                spec = row[1].rsplit(':', 1)[1]
+                spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
                 if plots:
-                    plot = "[<%s/%s.png|History>]" % (image_url, spec)
+                    image = spec.replace(":", "_") + ".png"
+                    plot = "[<%s/%s|History>]" % (image_url, image)
                 else:
                     plot = ""
                 rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
