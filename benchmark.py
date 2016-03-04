@@ -377,7 +377,7 @@ def benchmark(project_info, force=False, keep_env=False):
             images = conf.get("images")
             if conf["plot_history"]:
                 plots = db.plot_all()
-                if images:
+                if images and plots:
                     upload(plots, conf["images"]["upload"])
 
             # if slack info is provided, post message to slack
@@ -545,6 +545,8 @@ def run_benchmarks(csv_file):
     testflo_cmd = "testflo -bv -d %s" % csv_file
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     print(code, out, err)
+    if code:
+        raise RuntimeError("testflo did not complete successfully")
 
 
 def upload(files, dest):
