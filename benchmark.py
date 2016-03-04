@@ -132,7 +132,7 @@ class BenchmarkDatabase(object):
             for dep, ver in installed.items():
                 self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
 
-    def dump_benchmark_data(self):
+    def dump(self):
         """
         dump database to SQL file
         """
@@ -703,6 +703,9 @@ def _get_parser():
     parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
                         help='keep the created conda env after execution (usually for troubleshooting purposes)')
 
+    parser.add_argument('-d', '--dump', action='store_true', dest='dump',
+                        help='dump the contents of the database to an SQL file')
+
     return parser
 
 
@@ -744,6 +747,9 @@ def main(args=None):
                     db.plot_all()
                 else:
                     db.plot_benchmark_data(options.plot)
+            elif options.dump:
+                db = BenchmarkDatabase(project_name)
+                db.dump()
             else:
                 benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
