@@ -556,13 +556,15 @@ def backup_db(name):
     """
     backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
     code, out, err = get_exitcode_stdout_stderr(backup_cmd)
-    
-    dest = None
-    if conf.get("data"):
-        dest = conf["data"]["upload"]
-        if (dest):
+    if not code:
+        try:
+            dest = conf["data"]["upload"]
             rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
             code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
+        except KeyError:
+            pass # remote backup not configured
+        except:
+            print("ERROR attempting remote backup")
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
