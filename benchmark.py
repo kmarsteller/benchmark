@@ -394,11 +394,7 @@ def benchmark(project_info, force=False, keep_env=False):
         remove_env(run_name, keep_env)
 
         #back up and transfer database
-        dest = None
-        if conf.get("data"):
-            dest = conf["data"]["upload"]
-        db_name = project_info["name"] + ".db"
-        backup_db(db_name, dest)
+        backup_db(project_info["name"] + ".db")
 
 def clone_repo(repository, branch):
     """
@@ -554,12 +550,16 @@ def upload(files, dest):
     cmd = "scp %s %s" % (" ".join(files), dest)
     code, out, err = get_exitcode_stdout_stderr(cmd)
 
-def backup_db(name, dest):
+def backup_db(name):
     """
     create a local backup database, scp it to destination
     """
+    dest = None
+    if conf.get("data"):
+        dest = conf["data"]["upload"]
     backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
     code, out, err = get_exitcode_stdout_stderr(backup_cmd)
+    
     if (dest):
         rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
         code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
