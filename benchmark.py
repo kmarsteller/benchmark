@@ -552,7 +552,7 @@ def upload(files, dest):
 
 def backup_db(name):
     """
-    create a local backup database, scp it to destination
+    create a local backup database, rsync it to destination
     """
     backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
     code, out, err = get_exitcode_stdout_stderr(backup_cmd)
@@ -560,9 +560,9 @@ def backup_db(name):
     dest = None
     if conf.get("data"):
         dest = conf["data"]["upload"]
-    if (dest):
-        rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
-        code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
+        if (dest):
+            rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
+            code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
