@@ -561,7 +561,7 @@ def backup_db(name, dest):
     backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
     code, out, err = get_exitcode_stdout_stderr(backup_cmd)
     if (dest):
-        rsync_cmd = "rsync -zvh --progress "+ name + ".bak " + dest + "/" + name
+        rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
         code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
