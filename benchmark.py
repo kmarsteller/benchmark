@@ -390,11 +390,11 @@ def benchmark(project_info, force=False, keep_env=False):
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
-        # clean up environment
-        remove_env(run_name, keep_env)
-
         #back up and transfer database
         backup_db(project_info["name"] + ".db")
+
+        # clean up environment
+        remove_env(run_name, keep_env)
 
 
 def clone_repo(repository, branch):
