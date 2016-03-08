@@ -462,7 +462,8 @@ def create_env(env_name, dependencies):
         "psutil",       # for testflo benchmarking
         "nomkl",        # TODO: experiment with this
         "matplotlib",   # for plotting results
-        "curl"          # for uploading files & slack messages
+        "curl",         # for uploading files & slack messages
+        "sqlite"        # for backing up the database
     ])
     cmd = cmd + " " + conda_pkgs
 
@@ -485,6 +486,9 @@ def activate_env(env_name, triggers, dependencies):
     path = (os.path.expanduser("~") + "/anaconda/envs/" + env_name + "/bin") + os.pathsep +  path
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
+
+    # workaround for current issue with anaconda libgfortran
+    os.environ["LD_PRELOAD"] = "/usr/lib/x86_64-linux-gnu/libgfortran.so.3"
 
     # install testflo to do the benchmarking
     code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
