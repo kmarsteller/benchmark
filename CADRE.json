@@ -13,8 +13,8 @@
         "networkx",
         "sqlitedict",
         "mpi4py",
-        "~/dev/petsc",
-        "~/dev/petsc4py",
+        "git+https://bitbucket.org/petsc/petsc@v3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.5",
         "~/dev/pyoptsparse"
     ]
 }

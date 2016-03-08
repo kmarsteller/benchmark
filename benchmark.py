@@ -132,7 +132,7 @@ class BenchmarkDatabase(object):
             for dep, ver in installed.items():
                 self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
 
-    def dump_benchmark_data(self):
+    def dump(self):
         """
         dump database to SQL file
         """
@@ -377,7 +377,7 @@ def benchmark(project_info, force=False, keep_env=False):
             images = conf.get("images")
             if conf["plot_history"]:
                 plots = db.plot_all()
-                if images:
+                if images and plots:
                     upload(plots, conf["images"]["upload"])
 
             # if slack info is provided, post message to slack
@@ -390,11 +390,12 @@ def benchmark(project_info, force=False, keep_env=False):
             if conf["remove_csv"]:
                 os.remove(csv_file)
 
+        #back up and transfer database
+        backup_db(project_info["name"] + ".db")
+
         # clean up environment
         remove_env(run_name, keep_env)
 
-        #back up and transfer database
-        backup_db(project_info["name"] + ".db")
 
 def clone_repo(repository, branch):
     """
@@ -458,7 +459,8 @@ def create_env(env_name, dependencies):
         "psutil",       # for testflo benchmarking
         "nomkl",        # TODO: experiment with this
         "matplotlib",   # for plotting results
-        "curl"          # for uploading files & slack messages
+        "curl",         # for uploading files & slack messages
+        "sqlite"        # for backing up the database
     ])
     cmd = cmd + " " + conda_pkgs
 
@@ -550,6 +552,7 @@ def upload(files, dest):
     cmd = "scp %s %s" % (" ".join(files), dest)
     code, out, err = get_exitcode_stdout_stderr(cmd)
 
+
 def backup_db(name):
     """
     create a local backup database, rsync it to destination
@@ -565,6 +568,7 @@ def backup_db(name):
             pass # remote backup not configured
         except:
             print("ERROR attempting remote backup")
+
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
@@ -704,6 +708,9 @@ def _get_parser():
     parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
                         help='keep the created conda env after execution (usually for troubleshooting purposes)')
 
+    parser.add_argument('-d', '--dump', action='store_true', dest='dump',
+                        help='dump the contents of the database to an SQL file')
+
     return parser
 
 
@@ -719,6 +726,10 @@ def main(args=None):
         conf.update(read_json("benchmark.cfg"))
     except IOError:
         pass
+
+    if "env" in conf:
+        for key, val in conf["env"].iteritems():
+            os.environ[key] = val
 
     options = _get_parser().parse_args(args)
 
@@ -745,6 +756,9 @@ def main(args=None):
                     db.plot_all()
                 else:
                     db.plot_benchmark_data(options.plot)
+            elif options.dump:
+                db = BenchmarkDatabase(project_name)
+                db.dump()
             else:
                 benchmark(project_info, force=options.force, keep_env=options.keep_env)
 
