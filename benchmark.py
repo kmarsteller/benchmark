@@ -396,6 +396,7 @@ def benchmark(project_info, force=False, keep_env=False):
         #back up and transfer database
         backup_db(project_info["name"] + ".db")
 
+
 def clone_repo(repository, branch):
     """
     clone repository into current directory
@@ -545,8 +546,6 @@ def run_benchmarks(csv_file):
     testflo_cmd = "testflo -bv -d %s" % csv_file
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     print(code, out, err)
-    if code:
-        raise RuntimeError("testflo did not complete successfully")
 
 
 def upload(files, dest):
@@ -555,6 +554,7 @@ def upload(files, dest):
     """
     cmd = "scp %s %s" % (" ".join(files), dest)
     code, out, err = get_exitcode_stdout_stderr(cmd)
+
 
 def backup_db(name):
     """
@@ -571,6 +571,7 @@ def backup_db(name):
             pass # remote backup not configured
         except:
             print("ERROR attempting remote backup")
+
 
 def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
