@@ -4,11 +4,7 @@
     "dependencies": [
         "python=2.7",
         "numpy",
-        "scipy",
-        "networkx",
-        "sqlitedict",
-        "git+https://bitbucket.org/petsc/petsc@v3.5",
-        "git+https://bitbucket.org/petsc/petsc4py@3.5"
+        "scipy"
     ]
 }
 

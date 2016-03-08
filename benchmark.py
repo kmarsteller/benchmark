@@ -484,9 +484,6 @@ def activate_env(env_name, triggers, dependencies):
     logging.info("PATH NOW: %s" % path)
     os.environ["PATH"] = path
 
-    # workaround for current issue with anaconda libgfortran
-    os.environ["LD_PRELOAD"] = "/usr/lib/x86_64-linux-gnu/libgfortran.so.3"
-
     # install testflo to do the benchmarking
     code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
     if (code != 0):
@@ -729,6 +726,10 @@ def main(args=None):
         conf.update(read_json("benchmark.cfg"))
     except IOError:
         pass
+
+    if "env" in conf:
+        for key, val in conf["env"].iteritems():
+            os.environ[key] = val
 
     options = _get_parser().parse_args(args)
 
