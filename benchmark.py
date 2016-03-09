@@ -372,7 +372,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(run_name, keep_env)
+                run_unittests(run_name, keep_env, dependencies)
 
             # run benchmarks and add data to database
             csv_file = run_name+".csv"
@@ -541,20 +541,23 @@ def remove_repo_dir(repo_dir):
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
-def run_unittests(env_name, keep_env):
+def run_unittests(env_name, keep_env, dependencies):
     testflo_cmd = "testflo "
+
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
     if "mpi4py" in dependencies:
-        testflo_cmd = testflo_cmd + " -i"
+        testflo_cmd.append(" -i")
 
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     
-    #if failure, post to slack, quit
+    #if failure, post to slack, notify of failure, quit
     if code:
-        post_file_to_slack("test_report.out")
+        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (env_name.split("_")[0])
+        post_file_to_slack("test_report.out", fail_msg)
+        
         logging.warn("Failed unit testing.", out, err)
-        if not keep_env: remove_env(run_name, keep_env)
+        if not keep_env: remove_env(env_name, keep_env)
         raise RuntimeError("Failed unit testing.")
 
 def run_benchmarks(csv_file):
@@ -664,21 +667,21 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         logging.warn("Could not post msg to slack", code, out, err)
         print("Could not post msg to slack", code, out, err)
 
-
-def post_file_to_slack(filename):
+def post_file_to_slack(filename, title):
     """
     post a file to slack
     """
-    channel = conf["slack"]["channel"]
-    token   = conf["slack"]["token"]
+    channel  = conf["slack"]["channel"]
+    token    = conf["slack"]["token"]
 
-    cacert  = conf["ca"]["cacert"]
-    capath  = conf["ca"]["capath"]
+    cacert   = conf["ca"]["cacert"]
+    capath   = conf["ca"]["capath"]
 
-    cmd_fmt = "curl -F file=@%s -F filename=%s -F channels=%s -F token=%s " \
+
+    cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
             + "--cacert %s --capath %s https://slack.com/api/files.upload"
-
-    cmd = cmd_fmt % (filename, filename, channel, token, cacert, capath)
+    
+    cmd = cmd_fmt % (filename, title, filename, channel, token, cacert, capath)
     code, out, err = get_exitcode_stdout_stderr(cmd)
 
     if code:
@@ -731,7 +734,7 @@ def _get_parser():
 
     parser.add_argument('-u', '--unit-tests', action='store_true', dest='unit_tests',
                         help='run the unit tests before running the benchmarks.')
-
+    
     parser.add_argument('-d', '--dump', action='store_true', dest='dump',
                         help='dump the contents of the database to an SQL file')
 
