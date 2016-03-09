@@ -298,7 +298,7 @@ def repo(repository, branch=None):
         os.chdir(prev_dir)
 
 
-def benchmark(project_info, force=False, keep_env=False):
+def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
     """
     determine if a project or any of it's trigger dependencies have
     changed and run benchmarks if so
@@ -343,9 +343,11 @@ def benchmark(project_info, force=False, keep_env=False):
 
     # if new benchmark run is needed:
     # - create and activate a clean env
+    # - run unit tests, if desired
     # - run the benchmark
     # - save benchmark results to database
     # - clean up env and repos
+    # - back up database
     if update_triggered_by:
         logging.info("Benchmark triggered by updates to: %s" % str(update_triggered_by))
         print("Benchmark triggered by updates to: %s" % str(update_triggered_by))
@@ -367,6 +369,10 @@ def benchmark(project_info, force=False, keep_env=False):
                 name_ver = line.split(" ", 1)
                 if len(name_ver) == 2:
                     installed_deps[name_ver[0]] = name_ver[1]
+
+            # run unit tests
+            if unit_tests:
+                run_unittests(run_name, keep_env, dependencies)
 
             # run benchmarks and add data to database
             csv_file = run_name+".csv"
@@ -533,6 +539,24 @@ def remove_repo_dir(repo_dir):
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
+def run_unittests(env_name, keep_env, dependencies):
+    testflo_cmd = "testflo "
+
+    # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
+    if "mpi4py" in dependencies:
+        testflo_cmd.append(" -i")
+
+    # run testflo command
+    code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
+    
+    #if failure, post to slack, notify of failure, quit
+    if code:
+        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (env_name.split("_")[0])
+        post_file_to_slack("test_report.out", fail_msg)
+        
+        logging.warn("Failed unit testing.", out, err)
+        if not keep_env: remove_env(env_name, keep_env)
+        raise RuntimeError("Failed unit testing.")
 
 def run_benchmarks(csv_file):
     """
@@ -639,21 +663,21 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         logging.warn("Could not post msg to slack", code, out, err)
         print("Could not post msg to slack", code, out, err)
 
-
-def post_file_to_slack(filename):
+def post_file_to_slack(filename, title):
     """
     post a file to slack
     """
-    channel = conf["slack"]["channel"]
-    token   = conf["slack"]["token"]
+    channel  = conf["slack"]["channel"]
+    token    = conf["slack"]["token"]
 
-    cacert  = conf["ca"]["cacert"]
-    capath  = conf["ca"]["capath"]
+    cacert   = conf["ca"]["cacert"]
+    capath   = conf["ca"]["capath"]
 
-    cmd_fmt = "curl -F file=@%s -F filename=%s -F channels=%s -F token=%s " \
+
+    cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
             + "--cacert %s --capath %s https://slack.com/api/files.upload"
-
-    cmd = cmd_fmt % (filename, filename, channel, token, cacert, capath)
+    
+    cmd = cmd_fmt % (filename, title, filename, channel, token, cacert, capath)
     code, out, err = get_exitcode_stdout_stderr(cmd)
 
     if code:
@@ -704,6 +728,8 @@ def _get_parser():
     parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
                         help='keep the created conda env after execution (usually for troubleshooting purposes)')
 
+    parser.add_argument('-u', '--unit-tests', action='store_true', dest='unit_tests',
+                        help='run the unit tests before running the benchmarks.')
     return parser
 
 
@@ -746,7 +772,7 @@ def main(args=None):
                 else:
                     db.plot_benchmark_data(options.plot)
             else:
-                benchmark(project_info, force=options.force, keep_env=options.keep_env)
+                benchmark(project_info, force=options.force, keep_env=options.keep_env, unit_tests=options.unit_tests)
 
 
 if __name__ == '__main__':
