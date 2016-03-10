@@ -356,7 +356,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
         dependencies = project_info.get("dependencies", [])
 
         create_env(run_name, dependencies)
-        activate_env(run_name, triggers, dependencies)
+        activate_env(project_info["name"], triggers, dependencies)
 
         with repo(project_info["repository"], project_info.get("branch", None)):
             # install project
@@ -541,7 +541,7 @@ def remove_repo_dir(repo_dir):
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
-def run_unittests(env_name, keep_env, dependencies):
+def run_unittests(proj_name, dependencies, keep_env):
     testflo_cmd = "testflo "
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
@@ -551,13 +551,15 @@ def run_unittests(env_name, keep_env, dependencies):
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     
-    #if failure, post to slack, notify of failure, quit
+    #if failure, post to slack, remove env, notify of failure, quit
     if code:
-        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (env_name.split("_")[0])
+        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
         
+        if not keep_env: 
+            remove_env(env_name, keep_env)
+
         logging.warn("Failed unit testing.", out, err)
-        if not keep_env: remove_env(env_name, keep_env)
         raise RuntimeError("Failed unit testing.")
 
 def run_benchmarks(csv_file):
@@ -671,11 +673,11 @@ def post_file_to_slack(filename, title):
     """
     post a file to slack
     """
-    channel  = conf["slack"]["channel"]
-    token    = conf["slack"]["token"]
+    channel = conf["slack"]["channel"]
+    token   = conf["slack"]["token"]
 
-    cacert   = conf["ca"]["cacert"]
-    capath   = conf["ca"]["capath"]
+    cacert  = conf["ca"]["cacert"]
+    capath  = conf["ca"]["capath"]
 
 
     cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
