@@ -372,7 +372,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(project_info["name"], dependencies, keep_env)
+                run_unittests(project_info["name"], dependencies, run_name, keep_env)
 
             # run benchmarks and add data to database
             csv_file = run_name+".csv"
@@ -541,7 +541,7 @@ def remove_repo_dir(repo_dir):
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
-def run_unittests(proj_name, dependencies, keep_env):
+def run_unittests(proj_name, dependencies,env_name, keep_env):
     testflo_cmd = "testflo "
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
@@ -794,4 +794,3 @@ def main(args=None):
 
 if __name__ == '__main__':
     sys.exit(main())
-
