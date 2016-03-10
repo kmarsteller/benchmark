@@ -356,7 +356,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
         dependencies = project_info.get("dependencies", [])
 
         create_env(run_name, dependencies)
-        activate_env(project_info["name"], triggers, dependencies)
+        activate_env(run_name, triggers, dependencies)
 
         with repo(project_info["repository"], project_info.get("branch", None)):
             # install project
@@ -372,7 +372,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(run_name, keep_env, dependencies)
+                run_unittests(project_info["name"], keep_env, dependencies)
 
             # run benchmarks and add data to database
             csv_file = run_name+".csv"
@@ -551,7 +551,7 @@ def run_unittests(proj_name, dependencies, keep_env):
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     
-    #if failure, post to slack, remove env, notify of failure, quit
+    # if failure, post to slack, remove env, notify of failure, quit
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
