@@ -372,7 +372,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(project_info["name"], keep_env, dependencies)
+                run_unittests(project_info["name"], dependencies, keep_env)
 
             # run benchmarks and add data to database
             csv_file = run_name+".csv"
@@ -547,7 +547,7 @@ def run_unittests(proj_name, dependencies, keep_env):
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
     if "mpi4py" in dependencies:
         testflo_cmd += " -i"
-        
+
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     
