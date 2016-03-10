@@ -546,8 +546,8 @@ def run_unittests(proj_name, dependencies, keep_env):
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
     if "mpi4py" in dependencies:
-        testflo_cmd.append(" -i")
-
+        testflo_cmd += " -i"
+        
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
     
