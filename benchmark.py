@@ -372,29 +372,30 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(project_info["name"], dependencies, run_name, keep_env)
+                rc = run_unittests(project_info["name"], dependencies)
 
             # run benchmarks and add data to database
-            csv_file = run_name+".csv"
-            run_benchmarks(csv_file)
-            db.add_benchmark_data(current_commits, csv_file, installed_deps)
+            if not unit_tests or not rc:
+                csv_file = run_name+".csv"
+                run_benchmarks(csv_file)
+                db.add_benchmark_data(current_commits, csv_file, installed_deps)
 
-            # generate plots if requested and upload if image location is provided
-            images = conf.get("images")
-            if conf["plot_history"]:
-                plots = db.plot_all()
-                if images and plots:
-                    upload(plots, conf["images"]["upload"])
+                # generate plots if requested and upload if image location is provided
+                images = conf.get("images")
+                if conf["plot_history"]:
+                    plots = db.plot_all()
+                    if images and plots:
+                        upload(plots, conf["images"]["upload"])
 
-            # if slack info is provided, post message to slack
-            if "slack" in conf:
-                if images:
-                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
-                else:
-                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
+                # if slack info is provided, post message to slack
+                if "slack" in conf:
+                    if images:
+                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
+                    else:
+                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
 
-            if conf["remove_csv"]:
-                os.remove(csv_file)
+                if conf["remove_csv"]:
+                    os.remove(csv_file)
 
         #back up and transfer database
         backup_db(project_info["name"] + ".db")
@@ -525,7 +526,7 @@ def remove_env(env_name, keep_env):
     logging.info("PATH NOW: %s", path)
     os.environ["PATH"] = path
 
-    if(not keep_env):
+    if not keep_env:
         conda_delete = "conda env remove -y --name " + env_name
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
@@ -542,7 +543,7 @@ def remove_repo_dir(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
 
-def run_unittests(proj_name, dependencies, env_name, keep_env):
+def run_unittests(proj_name, dependencies):
     testflo_cmd = "testflo "
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
@@ -556,12 +557,9 @@ def run_unittests(proj_name, dependencies, env_name, keep_env):
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
-
-        if not keep_env:
-            remove_env(env_name, keep_env)
-
         logging.warn("Failed unit testing.\n%s\n%s", out, err)
-        raise RuntimeError("Failed unit testing.")
+
+    return code
 
 
 def run_benchmarks(csv_file):
