@@ -102,7 +102,7 @@ class BenchmarkDatabase(object):
         self._ensure_commits()
 
         for trigger, commit in commits.items():
-            logging.info('INSERTING COMMIT %s %s' % (trigger, commit))
+            logging.info('INSERTING COMMIT %s %s', trigger, commit)
             self.cursor.execute('INSERT OR REPLACE INTO LastCommits VALUES (?, ?)', (trigger, str(commit)))
             self.cursor.execute('INSERT INTO Commits VALUES (?, ?, ?)', (timestamp, trigger, str(commit)))
 
@@ -160,7 +160,7 @@ class BenchmarkDatabase(object):
         """
         generate a history plot for a benchmark
         """
-        logging.info('plot: %s' % spec)
+        logging.info('plot: %s', spec)
         print('plot: %s' % spec)
 
         self._ensure_benchmark_data()
@@ -175,14 +175,14 @@ class BenchmarkDatabase(object):
 
             data = {}
             for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
-                logging.info('row: %s' % str(row))
+                logging.info('row: %s', str(row))
                 data.setdefault('timestamp', []).append(row[0])
                 data.setdefault('status', []).append(row[2])
                 data.setdefault('elapsed', []).append(row[3])
                 data.setdefault('memory', []).append(row[4])
 
             if not data:
-                logging.warn("No data to plot for %s" % spec)
+                logging.warn("No data to plot for %s", spec)
                 print("No data to plot for %s" % spec)
                 return
 
@@ -238,16 +238,16 @@ def get_exitcode_stdout_stderr(cmd):
     Execute the external command and get its exitcode, stdout and stderr.
     """
     print(cmd)
-    logging.info("CMD => %s" % cmd)
+    logging.info("CMD => %s", cmd)
     args = shlex.split(cmd)
     proc = Popen(args, stdout=PIPE, stderr=PIPE)
     out, err = proc.communicate()
     rc = proc.returncode
-    logging.info("RC => %d" % rc)
+    logging.info("RC => %d", rc)
     if out:
-        logging.debug("STDOUT =>\n%s" % out)
+        logging.debug("STDOUT =>\n%s", out)
     if err:
-        logging.debug("STDERR =>\n%s" % err)
+        logging.debug("STDERR =>\n%s", err)
         print(err)
     return rc, out, err
 
@@ -257,7 +257,7 @@ def cd(newdir):
     """
     A cd that will better handle error and return to its orig dir.
     """
-    logging.info('cd into %s' % newdir)
+    logging.info('cd into %s', newdir)
     prevdir = os.getcwd()
     fulldir = os.path.expanduser(newdir)
     if not os.path.exists(fulldir):
@@ -266,7 +266,7 @@ def cd(newdir):
     try:
         yield
     finally:
-        logging.info('cd from %s back to %s' % (fulldir, prevdir))
+        logging.info('cd from %s back to %s', fulldir, prevdir)
         os.chdir(prevdir)
 
 
@@ -281,20 +281,20 @@ def repo(repository, branch=None):
     repo_dir = conf["repo_dir"]
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
-    logging.info('cd into repo dir %s from  %s' % (repo_dir, prev_dir))
+    logging.info('cd into repo dir %s from  %s', repo_dir, prev_dir)
     os.chdir(repo_dir)
 
     repo_name = repository.split('/')[-1]
     if not os.path.isdir(repo_name):
         clone_repo(repository, branch)
 
-    logging.info('cd into repo %s' % repo_name)
+    logging.info('cd into repo %s', repo_name)
     print('cd into repo %s' % repo_name)
     os.chdir(repo_name)
     try:
         yield
     finally:
-        logging.info('cd from repo %s back to %s' % (repo_name, prev_dir))
+        logging.info('cd from repo %s back to %s', repo_name, prev_dir)
         os.chdir(prev_dir)
 
 
@@ -333,11 +333,11 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
             with repo(trigger, branch):
                 print('checking trigger', trigger, branch if branch else '')
                 last_commit = str(db.get_last_commit(trigger))
-                logging.info("Last CommitID: %s" % last_commit)
+                logging.info("Last CommitID: %s", last_commit)
                 current_commits[trigger] = get_current_commit()
-                logging.info("Current CommitID: %s" % current_commits[trigger])
+                logging.info("Current CommitID: %s", current_commits[trigger])
                 if (last_commit != current_commits[trigger]):
-                    logging.info("There has been an update to %s\n" % trigger)
+                    logging.info("There has been an update to %s\n", trigger)
                     print("There has been an update to %s" % trigger)
                     update_triggered_by.append(trigger)
 
@@ -349,7 +349,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
     # - clean up env and repos
     # - back up database
     if update_triggered_by:
-        logging.info("Benchmark triggered by updates to: %s" % str(update_triggered_by))
+        logging.info("Benchmark triggered by updates to: %s", str(update_triggered_by))
         print("Benchmark triggered by updates to: %s" % str(update_triggered_by))
 
         triggers = project_info.get("triggers", [])
@@ -372,29 +372,30 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                run_unittests(project_info["name"], dependencies, run_name, keep_env)
+                rc = run_unittests(project_info["name"], dependencies)
 
             # run benchmarks and add data to database
-            csv_file = run_name+".csv"
-            run_benchmarks(csv_file)
-            db.add_benchmark_data(current_commits, csv_file, installed_deps)
+            if not unit_tests or not rc:
+                csv_file = run_name+".csv"
+                run_benchmarks(csv_file)
+                db.add_benchmark_data(current_commits, csv_file, installed_deps)
 
-            # generate plots if requested and upload if image location is provided
-            images = conf.get("images")
-            if conf["plot_history"]:
-                plots = db.plot_all()
-                if images and plots:
-                    upload(plots, conf["images"]["upload"])
+                # generate plots if requested and upload if image location is provided
+                images = conf.get("images")
+                if conf["plot_history"]:
+                    plots = db.plot_all()
+                    if images and plots:
+                        upload(plots, conf["images"]["upload"])
 
-            # if slack info is provided, post message to slack
-            if "slack" in conf:
-                if images:
-                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
-                else:
-                    post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
+                # if slack info is provided, post message to slack
+                if "slack" in conf:
+                    if images:
+                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
+                    else:
+                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
 
-            if conf["remove_csv"]:
-                os.remove(csv_file)
+                if conf["remove_csv"]:
+                    os.remove(csv_file)
 
         #back up and transfer database
         backup_db(project_info["name"] + ".db")
@@ -480,14 +481,14 @@ def activate_env(env_name, triggers, dependencies):
     Activate an existing conda env and install triggers and dependencies into it
     """
     # activate environment by modifying PATH
-    logging.info("PATH AT FIRST: %s" % os.environ["PATH"])
+    logging.info("PATH AT FIRST: %s", os.environ["PATH"])
     path = os.environ["PATH"].split(os.pathsep)
     os.environ["KEEP_PATH"] = path[0]  # old path leader
     path.remove(path[0])  # remove default conda env
     path = (os.pathsep).join(path)
-    logging.info("env_name: %s, path: %s" % (env_name, path))
+    logging.info("env_name: %s, path: %s", env_name, path)
     path = (os.path.expanduser("~") + "/anaconda/envs/" + env_name + "/bin") + os.pathsep +  path
-    logging.info("PATH NOW: %s" % path)
+    logging.info("PATH NOW: %s", path)
     os.environ["PATH"] = path
 
     # install testflo to do the benchmarking
@@ -517,15 +518,15 @@ def remove_env(env_name, keep_env):
     """
     Deactivate and remove a conda env at the end of a benchmarking run.
     """
-    logging.info("PATH AT FIRST: " + os.environ["PATH"])
+    logging.info("PATH AT FIRST: %s", os.environ["PATH"])
     path = os.environ["PATH"].split(os.pathsep)
     path.remove(path[0])  # remove modified
     path = (os.pathsep).join(path)
     path = ((os.environ["KEEP_PATH"]) + os.pathsep +  path)
-    logging.info("PATH NOW: %s" % path)
+    logging.info("PATH NOW: %s", path)
     os.environ["PATH"] = path
 
-    if(not keep_env):
+    if not keep_env:
         conda_delete = "conda env remove -y --name " + env_name
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
@@ -541,8 +542,9 @@ def remove_repo_dir(repo_dir):
     if os.path.exists(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
-def run_unittests(proj_name, dependencies, env_name, keep_env):
-    testflo_cmd = "testflo "
+
+def run_unittests(proj_name, dependencies):
+    testflo_cmd = "testflo"
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
     if "mpi4py" in dependencies:
@@ -550,17 +552,16 @@ def run_unittests(proj_name, dependencies, env_name, keep_env):
 
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
-    
+    logging.info(out)
+    logging.warn(err)
+
     # if failure, post to slack, remove env, notify of failure, quit
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
-        
-        if not keep_env: 
-            remove_env(env_name, keep_env)
 
-        logging.warn("Failed unit testing.", out, err)
-        raise RuntimeError("Failed unit testing.")
+    return code
+
 
 def run_benchmarks(csv_file):
     """
@@ -666,8 +667,9 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
 
     code, out, err = get_exitcode_stdout_stderr(cmd)
     if code:
-        logging.warn("Could not post msg to slack", code, out, err)
+        logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
         print("Could not post msg to slack", code, out, err)
+
 
 def post_file_to_slack(filename, title):
     """
@@ -679,16 +681,15 @@ def post_file_to_slack(filename, title):
     cacert  = conf["ca"]["cacert"]
     capath  = conf["ca"]["capath"]
 
-
     cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
             + "--cacert %s --capath %s https://slack.com/api/files.upload"
-    
+
     cmd = cmd_fmt % (filename, title, filename, channel, token, cacert, capath)
     code, out, err = get_exitcode_stdout_stderr(cmd)
 
     if code:
-        logging.warn("Could not post file to slack", code, out, err)
         print("Could not post file to slack", code, out, err)
+        logging.warn("Could not post file to slack:\n%s\n%s", out, err)
 
 
 def init_log(name):
@@ -736,7 +737,7 @@ def _get_parser():
 
     parser.add_argument('-u', '--unit-tests', action='store_true', dest='unit_tests',
                         help='run the unit tests before running the benchmarks.')
-    
+
     parser.add_argument('-d', '--dump', action='store_true', dest='dump',
                         help='dump the contents of the database to an SQL file')
 
