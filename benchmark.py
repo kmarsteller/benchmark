@@ -544,7 +544,7 @@ def remove_repo_dir(repo_dir):
 
 
 def run_unittests(proj_name, dependencies):
-    testflo_cmd = "testflo "
+    testflo_cmd = "testflo"
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
     if "mpi4py" in dependencies:
@@ -552,12 +552,13 @@ def run_unittests(proj_name, dependencies):
 
     # run testflo command
     code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
+    logging.info(out)
+    logging.warn(err)
 
     # if failure, post to slack, remove env, notify of failure, quit
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
-        logging.warn("Failed unit testing.\n%s\n%s", out, err)
 
     return code
 
