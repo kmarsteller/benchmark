@@ -12,6 +12,7 @@ import sqlite3
 import time
 import json
 import csv
+import math
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -601,7 +602,19 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     """
     post a message to slack detailing benchmark results
     """
-    pretext = "*%s* benchmark tiggered by " % name
+    try:
+        msg_url = conf["slack"]["message"]
+    except KeyError:
+        logging.warn("Slack message requested but Slack is not configured")
+
+    if "ca" in conf:
+        cacert  = conf["ca"]["cacert"]
+        capath  = conf["ca"]["capath"]
+        ca = "--cacert %s --capath %s "  % (cacert, capath)
+    else:
+        ca = ""
+
+    pretext = "*%s* benchmarks tiggered by " % name
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         pretext = pretext + "force:\n"
     else:
@@ -613,8 +626,8 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         image_url = conf["images"]["url"]
 
     rows = ""
-    name = []
-    rslt = []
+    names = []
+    rslts = []
     color = "good"
     with open(filename, 'r') as csvfile:
         reader = csv.reader(csvfile)
@@ -629,46 +642,46 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
                 rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
                               % (spec, row[2], float(row[3]), float(row[4]), plot)
 
-                name.append("```%s```" % spec)
-                rslt.append("```%s\t%8.2fs\t%8.2fmb\t%s```" % (row[2], float(row[3]), float(row[4]), plot))
+                names.append("```%s```" % spec)
+                rslts.append("```%s\t%8.2fs\t%8.2fmb\t%s```" % (row[2], float(row[3]), float(row[4]), plot))
                 if row[2] != "OK":
                     color = "danger"
             except IndexError:
                 print("Invalid benchmark specification found in results:\n %s" % str(row))
 
-    payload = {
-        "attachments": [
-            {
-                "fallback": pretext + rows,
-                "color":    color,
-                "pretext":  pretext,
-                "fields": [
-                    { "title": "Benchmark", "value": "\n".join(name), "short": "true"},
-                    { "title": "Results",   "value": "\n".join(rslt), "short": "true"},
+        msg_count = int(math.ceil(len(names)/10.))
+        for m in range(msg_count):
+            if m > 0:
+                pretext = "*%s* benchmarks continued:" % name
+            payload = {
+                "attachments": [
+                    {
+                        "fallback": pretext + rows[:10],
+                        "color":    color,
+                        "pretext":  pretext,
+                        "fields": [
+                            { "title": "Benchmark", "value": "\n".join(names[:10]), "short": "true"},
+                            { "title": "Results",   "value": "\n".join(rslts[:10]), "short": "true"},
+                        ],
+                        "mrkdwn_in": ["pretext", "fields"]
+                    }
                 ],
-                "mrkdwn_in": ["pretext", "fields"]
+                "unfurl_links": "false",
+                "unfurl_media": "false"
             }
-        ],
-        "unfurl_links": "false",
-        "unfurl_media": "false"
-    }
 
-    url = conf["slack"]["message"]
-    msg = json.dumps(payload)
+            msg = json.dumps(payload)
 
-    if "ca" in conf:
-        cacert  = conf["ca"]["cacert"]
-        capath  = conf["ca"]["capath"]
-        ca = "--cacert %s --capath %s "  % (cacert, capath)
-    else:
-        ca = ""
+            cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (msg, msg_url, ca)
 
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s"  % (msg, url, ca)
+            code, out, err = get_exitcode_stdout_stderr(cmd)
+            if code:
+                logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
+                print("Could not post msg to slack", code, out, err)
 
-    code, out, err = get_exitcode_stdout_stderr(cmd)
-    if code:
-        logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
-        print("Could not post msg to slack", code, out, err)
+            rows = rows[10:]
+            names = names[10:]
+            rslts = rslts[10:]
 
 
 def post_file_to_slack(filename, title):
