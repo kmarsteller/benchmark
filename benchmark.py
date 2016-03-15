@@ -606,6 +606,7 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
         msg_url = conf["slack"]["message"]
     except KeyError:
         logging.warn("Slack message requested but Slack is not configured")
+        return
 
     if "ca" in conf:
         cacert  = conf["ca"]["cacert"]
