@@ -619,6 +619,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         pretext = pretext + "force:\n"
     else:
+        links=[]
         # add the specific commit information to each trigger
         for url in update_triggered_by:
             if "bitbucket" in url:
