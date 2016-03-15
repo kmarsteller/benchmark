@@ -619,17 +619,11 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         pretext = pretext + "force:\n"
     else:
-        links = [url + "/commit/" + current_commits[url]
+        links = [url + "/commit/" + current_commits[url].strip('\n')
                 for url in update_triggered_by]
 
         links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
                  for url in links]
-        # links = ["%s" % url.append(current_commits[url])
-        #           for url in update_triggered_by]
-        # #links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-        # #         for url in update_triggered_by]
-        # links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-        #          for url in links]
 
         pretext = pretext + "updates to: " + ", ".join(links) + "\n"
 
