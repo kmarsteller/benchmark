@@ -391,9 +391,9 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
                 # if slack info is provided, post message to slack
                 if "slack" in conf:
                     if images:
-                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file, plots)
+                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file, current_commits, plots)
                     else:
-                        post_message_to_slack(project_info["name"], update_triggered_by, csv_file)
+                        post_message_to_slack(project_info["name"], update_triggered_by, current_commits, csv_file)
 
                 if conf["remove_csv"]:
                     os.remove(csv_file)
@@ -598,7 +598,7 @@ def backup_db(name):
             print("ERROR attempting remote backup")
 
 
-def post_message_to_slack(name, update_triggered_by, filename, plots=None):
+def post_message_to_slack(name, update_triggered_by, filename, current_commits, plots=None):
     """
     post a message to slack detailing benchmark results
     """
@@ -618,8 +618,18 @@ def post_message_to_slack(name, update_triggered_by, filename, plots=None):
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         pretext = pretext + "force:\n"
     else:
-        links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
-                 for url in update_triggered_by]
+        links = [url + "/commit/" + current_commits[url]
+                for url in update_triggered_by]
+
+        links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
+                 for url in links]
+        # links = ["%s" % url.append(current_commits[url])
+        #           for url in update_triggered_by]
+        # #links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
+        # #         for url in update_triggered_by]
+        # links = ["<%s>" % url.replace("git@github.com:", "https://github.com/")
+        #          for url in links]
+
         pretext = pretext + "updates to: " + ", ".join(links) + "\n"
 
     if plots:
