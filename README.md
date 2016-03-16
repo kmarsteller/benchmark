@@ -9,7 +9,7 @@ Commands and their output will be kept in a similarly-named log, e.g `logs/[proj
 
 **SETTING UP A PROJECT TO DO BENCHMARKS**
 ------------------------------------------
-Generally, create a `benchmarks` directory in your project's repository.  Within that, create files that start with `benchmark_`, e.g. `benchmark_item.py`.  Follow the general rules for a unit test, only create classes with "Benchmark" in the name, and functions named `benchmark_`.  If these naming conventions are followed, benchmarks will be found and run automatically.
+Generally, create a `benchmarks` directory in your project's repository.  Within that, create files that start with `benchmark_`, e.g. `benchmark_item.py`.  Follow the general rules for a unit test, and create classes with `Benchmark` in their names, and functions that start with the prefix `benchmark_`.  If these naming conventions are followed, benchmarks will be found and run automatically.
 
 
 **PROJECT-SPECIFIC JSON FILE (required)**:
@@ -24,7 +24,7 @@ Generally, create a `benchmarks` directory in your project's repository.  Within
 
 `dependencies`: things needed by the `repository` in the conda env to successfully run the benchmark.
 
-An example [project].json file:
+An example `[project].json` file:
 ```
 {
     "repository": "git@github.com:user/repository",
