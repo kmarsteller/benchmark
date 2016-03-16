@@ -2,13 +2,14 @@
 ==========================================
 
 To start benchmarking, try:
-`python benchmark.py [project] --options`
+`python benchmark.py [project] -[options]`
 Results will be kept in a similarly-named database, e.g. `[project].db`.
-commands and their output will be kept in a similarly-named log, e.g `logs/[project].log`
+commands and their output will be kept in a similarly-named log, e.g `logs/[project].log`.
 
 **PROJECT-SPECIFIC JSON FILE (required)**:
 ------------------------------------------
-[project].json will be read in if command `python benchmark.py [project]` is run and [project].json exists.  If [project].json does not exist, benchmark will fail.
+`[project].json` will be read in if command `python benchmark.py [project]` is run and `[project].json` exists.  If `[project].json` does not exist, benchmark will fail.  Here are the JSON fields currently supported in that file:
+
 `repository`:  the repo to be benchmarked.
 `branch`:  the branch of that repo to benchmark.
 `triggers`:  list ofrepositories, that if changed, should trigger a new benchmarking run.
@@ -21,9 +22,9 @@ An example .json file looks like this:
     "branch":     "work",
 
     "triggers": [
-        "git@github.com:openmdao/OpenMDAO",
-        "git@github.com:openmdao/MBI",
-        "https://bitbucket.org/mdolab/pyoptsparse"
+        "git@github.com:user/trigger_repo_1",
+        "git@github.com:user/trigger_repo_2",
+        "https://bitbucket.org/user/trigger_repo_3"
     ],
 
     "dependencies": [
@@ -42,21 +43,21 @@ An example .json file looks like this:
 
 **OPTIONS: (they're um...OPTIONal)**
 ------------------------------------------
-`--plot`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py project --plot [spec]`
+`--plot`, `-p`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py project --plot [spec]`
 
-`--keep-env`:	To keep your temporary conda environment around after benchmarking,
+`--keep-env`, `-k`:	To keep your temporary conda environment around after benchmarking,
 (for troubleshooting purposes),  Note: when your run ends, the env will be kept, but you'll be returned back to whatever env you started the run in. To inspect the kept env, do a `conda env list` and `source activate envname`
 
-`--force`: To force a run of the benchmarks even if no trigger repos have been changed, simply add `--force` to the command. This is usually used for testing, or if something went wrong with a previous run and you want the benchmarks to run again.
+`--force`, `-f`: To force a run of the benchmarks even if no trigger repos have been changed, simply add `--force` to the command. This is usually used for testing, or if something went wrong with a previous run and you want the benchmarks to run again.
 
-`--unit-tests`: Runs the unit tests before running the benchmarks.  If the unit tests fail, benchmarks will not be run.
+`--unit-tests`, `-u`: Runs the unit tests before running the benchmarks.  If the unit tests fail, benchmarks will not be run.
 
-`--dump`: Dump the contents of the database to an SQL file.
+`--dump`, `-d`: Dump the contents of the database to an SQL file.
 
 
 **BENCHMARK.CFG FILE: (optional)**
 ------------------------------------------
-`benchmark.cfg` will be used if it exists, generally only needed if adminning a benchmark "server."
+`benchmark.cfg` will be used if it exists, but is generally only needed if administering a benchmark "server."
 JSON file currently used to  specify fields such as:
 `env`: set certain environment variables before use.
 `slack`: post benchmarking results _message_ to _channel_ using _token_. (see Slack documentation for more details on custom integrations/hooks.)
@@ -90,6 +91,10 @@ An example `benchmark.cfg` might look like this:
 
 **RUNNING BENCHMARK ON A REGULAR BASIS**
 ------------------------------------------
-It's suggested that if you want to run benchmark on a regular basis to keep track of code changes and how they change your performance, that you run `benchmark` on a regular schedule, for instance, in a `cron` job.
+It's suggested that if you want to run benchmark on a regular basis to keep track of code changes and how they change your performance, that you set `benchmark` to run on a regular schedule, for instance, in a `cron` job.
+
+**COMPATIBILITY NOTE**
+----------------------
+Given some of the underlying tools used to make benchmark work, it will likely only work with Linux and MacOSX.
 
 
