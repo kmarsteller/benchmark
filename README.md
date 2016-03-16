@@ -7,6 +7,11 @@ Results will be kept in a similarly-named database, e.g. `[project].db`
 
 Commands and their output will be kept in a similarly-named log, e.g `logs/[project].log`
 
+**SETTING UP A PROJECT TO DO BENCHMARKS**
+------------------------------------------
+Generally, create a `benchmarks` directory in your project's repository.  Within that, create files that start with `benchmark_`, e.g. `benchmark_item.py`.  Follow the general rules for a unit test, only create classes with "Benchmark" in the name, and functions named `benchmark_`.  If these naming conventions are followed, benchmarks will be found and run automatically.
+
+
 **PROJECT-SPECIFIC JSON FILE (required)**:
 ------------------------------------------
 `[project].json` will be read in if command `python benchmark.py [project]` is run and `[project].json` exists.  If `[project].json` does not exist, benchmark will fail.  Here are the JSON fields currently supported in that file:
@@ -15,9 +20,9 @@ Commands and their output will be kept in a similarly-named log, e.g `logs/[proj
 
 `branch`:  the branch of that repo to benchmark.
 
-`triggers`:  list ofrepositories, that if changed, should trigger a new benchmarking run.
+`triggers`:  list of repositories, that if changed, should trigger a new benchmarking run.
 
-`dependencies`:  other things needed by the repository to be installed in the conda env in order to successfully run the benchmark.
+`dependencies`: things needed by the `repository` in the conda env to successfully run the benchmark.
 
 An example [project].json file:
 ```
@@ -49,13 +54,11 @@ An example [project].json file:
 ------------------------------------------
 `--plot`, `-p`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py [project] --plot [spec]`
 
-`--keep-env`, `-k`:	To keep your temporary conda environment around after benchmarking, usually for troubleshooting purposes.  
-
-*Note:* when your run ends, the env will be kept, but you'll be returned back to whatever env you started the run in. To inspect the kept env, do a `conda env list` and `source activate envname`
+`--keep-env`, `-k`:	To keep your temporary conda environment around after benchmarking, usually for troubleshooting purposes.   *Note:* when your run ends, the env will be kept, but you'll be returned back to whatever env you started the run in. To inspect the kept env, do a `conda env list` and `source activate [envname]`
 
 `--force`, `-f`: To force a run of the benchmarks even if no trigger repos have been changed, simply add `--force` to the command. This is usually used for testing, or if something went wrong with a previous run and you want the benchmarks to run again.
 
-`--unit-tests`, `-u`: Runs the unit tests before running the benchmarks.  If the unit tests fail, benchmarks will not be run.
+`--unit-tests`, `-u`: Runs the unit tests before running the benchmarks. Benchmarks running are contingent on unit tests passing.
 
 `--dump`, `-d`: Dump the contents of the database to an SQL file.
 
