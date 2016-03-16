@@ -1,12 +1,14 @@
-Instructions for running benchmark.py:
-
+**Instructions for running benchmark.py:**
+==========================================
 
 To start benchmarking, try:
 `python benchmark.py [project] --options`
-Results will be kept in a similarly-named database, e.g. `[project].db`
+Results will be kept in a similarly-named database, e.g. `[project].db`.
 commands and their output will be kept in a similarly-named log, e.g `logs/[project].log`
 
-*PROJECT-SPECIFIC JSON FILE (required)*:  [project].json will be read in if command `python benchmark.py [project]` is run and [project].json exists.
+**PROJECT-SPECIFIC JSON FILE (required)**:
+------------------------------------------
+[project].json will be read in if command `python benchmark.py [project]` is run and [project].json exists.  If [project].json does not exist, benchmark will fail.
 `repository`:  the repo to be benchmarked.
 `branch`:  the branch of that repo to benchmark.
 `triggers`:  list ofrepositories, that if changed, should trigger a new benchmarking run.
@@ -34,10 +36,12 @@ An example .json file looks like this:
         "git+https://bitbucket.org/petsc/petsc@v3.5",
         "git+https://bitbucket.org/petsc/petsc4py@3.5"
     ]
-}```
+}
+```
 
 
-*OPTIONS: (optional)*
+**OPTIONS: (they're um...OPTIONal)**
+------------------------------------------
 `--plot`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py project --plot [spec]`
 
 `--keep-env`:	To keep your temporary conda environment around after benchmarking,
@@ -47,10 +51,11 @@ An example .json file looks like this:
 
 `--unit-tests`: Runs the unit tests before running the benchmarks.  If the unit tests fail, benchmarks will not be run.
 
-`--dump`: Dump the contents of the database to an SQL file
+`--dump`: Dump the contents of the database to an SQL file.
 
 
-*BENCHMARK.CFG FILE: (optional)*  
+**BENCHMARK.CFG FILE: (optional)**
+------------------------------------------
 `benchmark.cfg` will be used if it exists, generally only needed if adminning a benchmark "server."
 JSON file currently used to  specify fields such as:
 `env`: set certain environment variables before use.
@@ -59,7 +64,8 @@ JSON file currently used to  specify fields such as:
 `data`: can be used to specify a place to _upload_ a database backup.
 
 An example `benchmark.cfg` might look like this:
-```{
+```
+{
     "env": {
         "LD_PRELOAD": "/path/to/libgfortran.so.3"
     },
@@ -79,6 +85,11 @@ An example `benchmark.cfg` might look like this:
     "data": {
     	"upload": "user@server.domain.com:directory"
     }
-}```
+}
+```
+
+**RUNNING BENCHMARK ON A REGULAR BASIS**
+------------------------------------------
+It's suggested that if you want to run benchmark on a regular basis to keep track of code changes and how they change your performance, that you run `benchmark` on a regular schedule, for instance, in a `cron` job.
 
 
