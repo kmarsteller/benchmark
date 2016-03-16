@@ -45,7 +45,7 @@ An example [project].json file:
 ```
 
 
-**OPTIONS: (they're um...OPTIONal)**
+**OPTIONS: (they're...optional)**
 ------------------------------------------
 `--plot`, `-p`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py [project] --plot [spec]`
 
@@ -67,7 +67,7 @@ An example [project].json file:
 JSON file currently used to  specify fields such as:
 `env`: set certain environment variables before use.
 
-`slack`: post benchmarking results _message_ to _channel_ using _token_. (see Slack documentation for more details on custom integrations/hooks.)
+`slack`: post benchmarking results _message_ to _channel_ using _token_. (see JSON example below and Slack documentation for more details on custom integrations/hooks.)
 
 `images`: can be used to _upload_ images to a specific _url_.
 `data`: can be used to specify a place to _upload_ a database backup.
@@ -78,11 +78,12 @@ JSON file currently used to  specify fields such as:
 
 `logs_dir`:  where to keep the logs for all of the projects being benchmarked.  Defaults to `working_dir/logs`
 
-`remove_csv`:  remove benchmark data file after adding to database. Default: False.
+`remove_csv`:  remove benchmark data file after adding to database. Default: `False`.
  
-`plot_history`: generate a plot showing history of each benchmark. Default: True.
+`plot_history`: generate a plot showing history of each benchmark. Default: `True`.
 
 `ca`:  CA cert information needed by curl
+
 	`cacert`:  Defaults to "/etc/ssl/certs/ca-certificates.crt"
     `capath`:  Defaults to "/etc/ssl/certs"
 
@@ -113,7 +114,7 @@ An example `benchmark.cfg`:
 
 **RUNNING BENCHMARK ON A REGULAR BASIS**
 ------------------------------------------
-It's suggested that if you want to run benchmark on a regular basis to keep track of code changes and how they change your performance, that you set `benchmark` to run on a regular schedule, for instance, in a `cron` job.
+It's suggested that if you want to run `benchmark` on a regular basis to keep track of history of code changes and how they change your performance, that you set `benchmark` to run on a regular schedule, for instance, in a `cron` job.
 
 **COMPATIBILITY NOTE**
 ----------------------
