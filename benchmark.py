@@ -373,7 +373,7 @@ def benchmark(project_info, force=False, keep_env=False, unit_tests=False):
 
             # run unit tests
             if unit_tests:
-                rc = run_unittests(project_info["name"], dependencies)
+                rc = run_unittests(project_info["name"], dependencies, update_triggered_by, current_commits)
 
             # run benchmarks and add data to database
             if not unit_tests or not rc:
@@ -559,7 +559,7 @@ def run_unittests(proj_name, dependencies, update_triggered_by, current_commits)
     # if failure, post to slack, remove env, notify of failure, quit
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
-        post_file_to_slack("test_report.out", fail_msg, update_triggered_by, current_commits)
+        post_file_to_slack("test_report.out", fail_msg, proj_name, update_triggered_by, current_commits)
 
     return code
 
@@ -615,7 +615,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
     else:
         ca = ""
 
-    pretext = get_trigger_links(update_triggered_by, current_commits)
+    pretext = get_trigger_links(name, update_triggered_by, current_commits)
 
     if plots:
         image_url = conf["images"]["url"]
@@ -679,7 +679,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
             rslts = rslts[10:]
 
 
-def post_file_to_slack(filename, title, update_triggered_by, current_commits):
+def post_file_to_slack(filename, title, name, update_triggered_by, current_commits):
     """
     post a file to slack
     """
@@ -689,7 +689,7 @@ def post_file_to_slack(filename, title, update_triggered_by, current_commits):
     cacert  = conf["ca"]["cacert"]
     capath  = conf["ca"]["capath"]
 
-    pretext = get_trigger_links(update_triggered_by, current_commits)
+    pretext = get_trigger_links(name, update_triggered_by, current_commits)
     title = title + pretext
 
     cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
@@ -702,11 +702,12 @@ def post_file_to_slack(filename, title, update_triggered_by, current_commits):
         print("Could not post file to slack", code, out, err)
         logging.warn("Could not post file to slack:\n%s\n%s", out, err)
 
-def get_trigger_links(update_triggered_by, current_commits):
+def get_trigger_links(name, update_triggered_by, current_commits):
     """
     list specific commits (in link form)that caused this bench run
     """
     pretext = "*%s* benchmarks triggered by " % name
+
     if len(update_triggered_by) == 1 and "force" in update_triggered_by:
         pretext = pretext + "force:\n"
     else:
