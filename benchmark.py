@@ -544,7 +544,7 @@ def remove_repo_dir(repo_dir):
         code, out, err = get_exitcode_stdout_stderr(remove_cmd)
 
 
-def run_unittests(proj_name, dependencies):
+def run_unittests(proj_name, dependencies, update_triggered_by, current_commits):
     testflo_cmd = "testflo"
 
     # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
@@ -559,7 +559,7 @@ def run_unittests(proj_name, dependencies):
     # if failure, post to slack, remove env, notify of failure, quit
     if code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
-        post_file_to_slack("test_report.out", fail_msg)
+        post_file_to_slack("test_report.out", fail_msg, update_triggered_by, current_commits)
 
     return code
 
@@ -615,24 +615,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
     else:
         ca = ""
 
-    pretext = "*%s* benchmarks tiggered by " % name
-    if len(update_triggered_by) == 1 and "force" in update_triggered_by:
-        pretext = pretext + "force:\n"
-    else:
-        links=[]
-        # add the specific commit information to each trigger
-        for url in update_triggered_by:
-            if "bitbucket" in url:
-                commit = "/commits/"
-            else:
-                commit = "/commit/"
-            links.append(url + commit + current_commits[url].strip('\n'))
-
-        # insert proper formatting so long URL text is replaced by short trigger-name hyperlink
-        links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
-                 for url in links]
-
-        pretext = pretext + "updates to: " + ", ".join(links) + "\n"
+    pretext = get_trigger_links(update_triggered_by, current_commits)
 
     if plots:
         image_url = conf["images"]["url"]
@@ -696,7 +679,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
             rslts = rslts[10:]
 
 
-def post_file_to_slack(filename, title):
+def post_file_to_slack(filename, title, update_triggered_by, current_commits):
     """
     post a file to slack
     """
@@ -705,6 +688,9 @@ def post_file_to_slack(filename, title):
 
     cacert  = conf["ca"]["cacert"]
     capath  = conf["ca"]["capath"]
+
+    pretext = get_trigger_links(update_triggered_by, current_commits)
+    title = title + pretext
 
     cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
             + "--cacert %s --capath %s https://slack.com/api/files.upload"
@@ -715,6 +701,31 @@ def post_file_to_slack(filename, title):
     if code:
         print("Could not post file to slack", code, out, err)
         logging.warn("Could not post file to slack:\n%s\n%s", out, err)
+
+def get_trigger_links(update_triggered_by, current_commits):
+    """
+    list specific commits (in link form)that caused this bench run
+    """
+    pretext = "*%s* benchmarks triggered by " % name
+    if len(update_triggered_by) == 1 and "force" in update_triggered_by:
+        pretext = pretext + "force:\n"
+    else:
+        links=[]
+        # add the specific commit information to each trigger
+        for url in update_triggered_by:
+            if "bitbucket" in url:
+                commit = "/commits/"
+            else:
+                commit = "/commit/"
+            links.append(url + commit + current_commits[url].strip('\n'))
+
+        # insert proper formatting so long URL text is replaced by short trigger-name hyperlink
+        links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
+                 for url in links]
+
+        pretext = pretext + "updates to: " + ", ".join(links) + "\n"
+
+    return pretext
 
 
 def init_log(name):

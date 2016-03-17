@@ -85,7 +85,7 @@ JSON file currently used to  specify fields such as:
  
 `plot_history`: generate a plot showing history of each benchmark. Default: `True`.
 
-`ca`:  CA cert information needed by curl
+`ca`:  CA cert information needed by curl, with two sub-data:
 
 	`cacert`:  Defaults to "/etc/ssl/certs/ca-certificates.crt"
     `capath`:  Defaults to "/etc/ssl/certs"
