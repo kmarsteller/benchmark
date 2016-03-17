@@ -557,11 +557,11 @@ def run_unittests(proj_name, dependencies, update_triggered_by, current_commits)
     logging.warn(err)
 
     # if failure, post to slack, remove env, notify of failure, quit
-    if code==0:
-        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
+    if code:
         message = get_trigger_links(proj_name, update_triggered_by, current_commits)
-        message = message + ", but unit tests failed..."
+        message = message + "However, unit tests failed..."
         post_simple_message_to_slack(message)
+        fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
         post_file_to_slack("test_report.out", fail_msg)
     return code
 
