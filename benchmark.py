@@ -557,10 +557,11 @@ def run_unittests(proj_name, dependencies, update_triggered_by, current_commits)
     logging.warn(err)
 
     # if failure, post to slack, remove env, notify of failure, quit
-    if code:
+    if not code:
         fail_msg = "\"%s : pre-benchmark regression testing has failed. See attached results file.\"" % (proj_name)
-        post_file_to_slack("test_report.out", fail_msg, proj_name, update_triggered_by, current_commits)
-
+        message = get_trigger_links(proj_name, update_triggered_by, current_commits)
+        post_simple_message_to_slack(message)
+        post_file_to_slack("test_report.out", fail_msg)
     return code
 
 
@@ -596,6 +597,44 @@ def backup_db(name):
             pass # remote backup not configured
         except:
             print("ERROR attempting remote backup")
+
+def post_simple_message_to_slack(message):
+    """
+    """
+    try:
+        msg_url = conf["slack"]["message"]
+    except KeyError:
+        logging.warn("Slack message requested but Slack is not configured")
+        return
+
+    if "ca" in conf:
+        cacert  = conf["ca"]["cacert"]
+        capath  = conf["ca"]["capath"]
+        ca = "--cacert %s --capath %s "  % (cacert, capath)
+    else:
+        ca = ""
+
+    payload = {
+        "attachments": [
+            {
+                "fallback": message,
+                "color":    "danger",
+                "pretext":  message,
+                "mrkdwn_in": ["pretext", "fields"]
+            }
+        ],
+        "unfurl_links": "false",
+        "unfurl_media": "false"
+    }
+
+    msg = json.dumps(payload)
+
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (msg, msg_url, ca)
+
+    code, out, err = get_exitcode_stdout_stderr(cmd)
+    if code:
+        logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
+        print("Could not post msg to slack", code, out, err)
 
 
 def post_message_to_slack(name, update_triggered_by, filename, current_commits, plots=None):
@@ -679,7 +718,7 @@ def post_message_to_slack(name, update_triggered_by, filename, current_commits, 
             rslts = rslts[10:]
 
 
-def post_file_to_slack(filename, title, name, update_triggered_by, current_commits):
+def post_file_to_slack(filename, title):
     """
     post a file to slack
     """
@@ -688,9 +727,6 @@ def post_file_to_slack(filename, title, name, update_triggered_by, current_commi
 
     cacert  = conf["ca"]["cacert"]
     capath  = conf["ca"]["capath"]
-
-    pretext = get_trigger_links(name, update_triggered_by, current_commits)
-    title = title + pretext
 
     cmd_fmt = "curl -F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
             + "--cacert %s --capath %s https://slack.com/api/files.upload"
