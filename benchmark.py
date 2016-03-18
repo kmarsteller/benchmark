@@ -353,12 +353,15 @@ class Slack(object):
         """
         post a file to slack
         """
-        args = "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
-             + "--cacert %s --capath %s  https://slack.com/api/files.upload"        \
-             % (filename, title, filename, self.cfg["channel"], self.cfg["token"],
-                self.ca["cacert"], self.ca["capath"])
+        cmd = "curl "
 
-        code, out, err = get_exitcode_stdout_stderr("curl " + args)
+        cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
+             % (filename, title, filename, self.cfg["channel"], self.cfg["token"])
+
+        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" \
+             % (self.ca["cacert"], self.ca["capath"])
+
+        code, out, err = get_exitcode_stdout_stderr(cmd)
 
         if code:
             print("Could not post file to slack", code, out, err)
