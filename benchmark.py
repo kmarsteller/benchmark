@@ -220,10 +220,10 @@ def get_current_commit():
 # anaconda helpers
 #
 
-def activate_env(env_name, dependencies, triggers):
+def activate_env(env_name, dependencies, local_repos):
     """
-    Create and activate a conda env, install dependencies and then triggers
-    into it (triggers are local repositories)
+    Create and activate a conda env, install dependencies and then
+    any local repositories
     """
     cmd = "conda create -y -n " + env_name
 
@@ -275,11 +275,11 @@ def activate_env(env_name, dependencies, triggers):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
 
     # triggers are installed from a local copy of the repo via 'setup.py install'
-    for trigger in triggers:
-        with repo(trigger):
+    for local_repo in local_repos:
+        with repo(local_repo):
             code, out, err = get_exitcode_stdout_stderr("python setup.py install")
             if (code != 0):
-                raise RuntimeError("Failed to install", trigger, "to", env_name, code, out, err)
+                raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
 
     return True
 
