@@ -518,10 +518,11 @@ class BenchmarkDatabase(object):
 
             fig, a1 = pyplot.subplots()
             a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
-            x = np.array(range(len(timestamp)))
-
+            #x = np.array(range(len(timestamp)))
+            x = timestamp
+            
             a1.plot(x, elapsed, 'b-')
-            a1.set_xlabel('run#')
+            a1.set_xlabel('run_date')
             a1.set_ylabel('elapsed', color='b')
             a1.set_ylim(0, max(elapsed)*1.15)
             for tl in a1.get_yticklabels():
