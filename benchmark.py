@@ -701,7 +701,7 @@ class BenchmarkRunner(object):
 
         # if failure, post to slack, remove env, notify of failure, quit
         if code and self.slack:
-            self.slack.post_message(trigger_msg + "However, unit tests failed...")
+            self.slack.post_message(trigger_msg + "However, unit tests failed... @channel")
             fail_msg = "\"%s : regression testing has failed. See attached results file.\"" % name
             self.slack.post_file("test_report.out", fail_msg)
 
