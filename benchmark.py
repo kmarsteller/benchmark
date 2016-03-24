@@ -520,12 +520,14 @@ class BenchmarkDatabase(object):
             a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
             
             x = np.array(range(len(timestamp)))
+            
+            #Add date information to x-axis
             x_ticks = []
             for stamp in data['timestamp']:
                 x_ticks.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d %H:%M:%S'))
-
-            pyplpt.xticks(x, x_ticks)
+            pyplot.xticks(x, x_ticks)
             pyplot.setp(x_ticks, rotation=90)
+
             a1.plot(x, elapsed, 'b-')
 
             a1.set_xlabel('run_date')
