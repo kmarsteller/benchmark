@@ -524,7 +524,7 @@ class BenchmarkDatabase(object):
             #Add date information to x-axis
             x_ticks = []
             for stamp in data['timestamp']:
-                x_ticks.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d %H:%M:%S'))
+                x_ticks.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d'))
             pyplot.xticks(x, x_ticks)
             locs, labels = pyplot.xticks()
             pyplot.setp(labels, rotation=90)
