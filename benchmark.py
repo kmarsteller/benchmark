@@ -526,10 +526,9 @@ class BenchmarkDatabase(object):
             for stamp in data['timestamp']:
                 date_labels.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%m/%d'))
             
-            n = len(date_labels)//10
-            a1.set_xticks(date_labels[::n], date_labels, rotation=90)    
-            
-            #pyplot.xticks(n, date_labels, rotation=90)
+            #n = len(date_labels)//10
+            #a1.set_xticks(date_labels[::n])    
+            pyplot.xticks(numpy.arange(len(date_labels)), date_labels, rotation=90)
 
             a1.plot(x, elapsed, 'b-')
             pyplot.grid()
