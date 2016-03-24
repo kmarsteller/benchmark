@@ -525,7 +525,7 @@ class BenchmarkDatabase(object):
             date_labels = []
             for stamp in data['timestamp']:
                 date_labels.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%m/%d'))
-            pyplot.xticks(np.arange(x), date_labels)
+            pyplot.xticks(np.arange(min(x), max(x)+1), date_labels)
             locs, labels = pyplot.xticks()
             pyplot.setp(labels, rotation=90)
 
