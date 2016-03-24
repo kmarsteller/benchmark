@@ -518,12 +518,16 @@ class BenchmarkDatabase(object):
 
             fig, a1 = pyplot.subplots()
             a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
-            #x = np.array(range(len(timestamp)))
-            x = []
+            
+            x = np.array(range(len(timestamp)))
+            x_ticks = []
             for stamp in data['timestamp']:
-                x.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d %H:%M:%S'))
+                x_ticks.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d %H:%M:%S'))
 
+            pyplpt.xticks(x, x_ticks)
+            pyplot.setp(x_ticks, rotation=90)
             a1.plot(x, elapsed, 'b-')
+
             a1.set_xlabel('run_date')
             a1.set_ylabel('elapsed', color='b')
             a1.set_ylim(0, max(elapsed)*1.15)
