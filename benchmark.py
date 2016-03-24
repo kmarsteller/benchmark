@@ -526,7 +526,8 @@ class BenchmarkDatabase(object):
             for stamp in data['timestamp']:
                 x_ticks.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%Y-%m-%d %H:%M:%S'))
             pyplot.xticks(x, x_ticks)
-            pyplot.setp(x_ticks, rotation=90)
+            locs, labels = pyplot.xticks()
+            pyplot.setp(labels, rotation=90)
 
             a1.plot(x, elapsed, 'b-')
 
