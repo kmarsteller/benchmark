@@ -519,8 +519,9 @@ class BenchmarkDatabase(object):
             fig, a1 = pyplot.subplots()
             a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
             #x = np.array(range(len(timestamp)))
-            x = timestamp
-            
+            print(datetime.datetime.fromtimestamp(data['timestamp']).strftime('%Y-%m-%d %H:%M:%S'))
+            x = datetime.datetime.fromtimestamp(data['timestamp']).strftime('%Y-%m-%d %H:%M:%S')
+
             a1.plot(x, elapsed, 'b-')
             a1.set_xlabel('run_date')
             a1.set_ylabel('elapsed', color='b')
