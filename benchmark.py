@@ -525,9 +525,9 @@ class BenchmarkDatabase(object):
             date_labels = []
             for stamp in data['timestamp']:
                 date_labels.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%m/%d'))
-            pyplot.xticks(np.arange(min(x), max(x)+1), date_labels)
+            pyplot.xticks(np.arange(min(x), max(x)+1), date_labels, rotation=90)
             locs, labels = pyplot.xticks()
-            pyplot.setp(labels, rotation=90)
+            #pyplot.setp(labels, rotation=90)
 
             a1.plot(x, elapsed, 'b-')
             pyplot.grid()
