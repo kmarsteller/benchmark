@@ -655,8 +655,7 @@ class BenchmarkRunner(object):
 
                 # run unit tests
                 if unit_tests:
-                    isolated = "mpi4py" in dependencies
-                    rc = self.run_unittests(project["name"], isolated, trigger_msg)
+                    rc = self.run_unittests(project["name"], trigger_msg)
 
                 # run benchmarks and add data to database
                 if not unit_tests or not rc:
@@ -687,12 +686,8 @@ class BenchmarkRunner(object):
             # clean up environment
             remove_env(run_name, keep_env)
 
-    def run_unittests(self, name, isolated, trigger_msg):
+    def run_unittests(self, name, trigger_msg):
         testflo_cmd = "testflo"
-
-        # inspect env to see if mpi4py is in there.  If so, add -i to testflo cmd
-        if isolated:
-            testflo_cmd += " -i"
 
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
