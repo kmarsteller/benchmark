@@ -554,7 +554,7 @@ class BenchmarkDatabase(object):
         """
         create a local backup database, rsync it to destination
         """
-        name = self.name
+        name = self.dbname
         backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
         code, out, err = get_exitcode_stdout_stderr(backup_cmd)
         if not code:
