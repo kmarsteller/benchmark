@@ -400,7 +400,7 @@ class BenchmarkDatabase(object):
         # benchmark in a run
         self.cursor.execute("CREATE TABLE if not exists BenchmarkData"
                             " (DateTime INT, Spec TEXT, Status TEXT, Elapsed REAL, Memory REAL,"
-                            "  PRIMARY KEY (DateTime, Spec))")
+                            "  LoadAvg1m REAL, LoadAvg5m REAL, LoadAvg15m REAL, PRIMARY KEY (DateTime, Spec))")
 
         # a table containing the versions of all installed dependencies for a run
         self.cursor.execute("CREATE TABLE if not exists InstalledDeps"
@@ -447,7 +447,7 @@ class BenchmarkDatabase(object):
                 logging.info('INSERTING BenchmarkData %s' % str(row))
                 try:
                     spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
-                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4])))
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
                     data_added = True
                 except IndexError:
                     print("Invalid benchmark specification found in results:\n %s" % str(row))
@@ -506,6 +506,9 @@ class BenchmarkDatabase(object):
                 data.setdefault('status', []).append(row[2])
                 data.setdefault('elapsed', []).append(row[3])
                 data.setdefault('memory', []).append(row[4])
+                data.setdefault('LoadAvg1m', []).append(row[5])
+                data.setdefault('LoadAvg5m', []).append(row[6])
+                data.setdefault('LoadAvg15m', []).append(row[7])
 
             if not data:
                 logging.warn("No data to plot for %s", spec)
@@ -518,16 +521,16 @@ class BenchmarkDatabase(object):
 
             fig, a1 = pyplot.subplots()
             a1.get_xaxis().set_major_locator(ticker.MaxNLocator(integer=True))
-            
+
             x = np.array(range(len(timestamp)))
-            
+
             #Add date information to x-axis ticks
             date_labels = []
             for stamp in data['timestamp']:
                 date_labels.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%m/%d'))
-            
+
             #n = len(date_labels)//10
-            #a1.set_xticks(date_labels[::n])    
+            #a1.set_xticks(date_labels[::n])
             pyplot.xticks(numpy.arange(len(date_labels)), date_labels, rotation=90)
 
             a1.plot(x, elapsed, 'b-')
