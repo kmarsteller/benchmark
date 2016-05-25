@@ -524,19 +524,9 @@ class BenchmarkDatabase(object):
 
             x = np.array(range(len(timestamp)))
 
-            #Add date information to x-axis ticks
-            date_labels = []
-            for stamp in data['timestamp']:
-                date_labels.append(datetime.datetime.fromtimestamp(float(stamp)).strftime('%m/%d'))
-
-            #n = len(date_labels)//10
-            #a1.set_xticks(date_labels[::n])
-            pyplot.xticks(numpy.arange(len(date_labels)), date_labels, rotation=90)
 
             a1.plot(x, elapsed, 'b-')
-            pyplot.grid()
-
-            a1.set_xlabel('run_date')
+            a1.set_xlabel('run#')
             a1.set_ylabel('elapsed', color='b')
             a1.set_ylim(0, max(elapsed)*1.15)
             for tl in a1.get_yticklabels():
