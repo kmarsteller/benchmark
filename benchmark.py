@@ -21,6 +21,11 @@ from argparse import ArgumentParser
 
 from contextlib import contextmanager
 
+
+# copy current env, we will modify and use for external commands
+env = os.environ.copy()
+
+
 benchmark_dir = os.path.abspath(os.path.dirname(__file__))
 
 #
@@ -47,6 +52,7 @@ conf = {
 }
 
 
+
 #
 # utility functions
 #
@@ -59,6 +65,16 @@ def read_json(filename):
         return json.loads(json_file.read())
 
 
+def prepend_path(newdir, path):
+    """
+    prepend `newdir` to `path`, return modified `path`
+    """
+    dirs = path.split(os.pathsep)
+    dirs.insert(0, newdir)
+    path = (os.pathsep).join(dirs)
+    return path
+
+
 def get_exitcode_stdout_stderr(cmd):
     """
     Execute the external command and get its exitcode, stdout and stderr.
@@ -66,7 +82,7 @@ def get_exitcode_stdout_stderr(cmd):
     print(cmd)
     logging.info("CMD => %s", cmd)
     args = shlex.split(cmd)
-    proc = Popen(args, stdout=PIPE, stderr=PIPE)
+    proc = Popen(args, stdout=PIPE, stderr=PIPE, env=env)
     out, err = proc.communicate()
     rc = proc.returncode
     logging.info("RC => %d", rc)
@@ -252,14 +268,16 @@ def activate_env(env_name, dependencies, local_repos):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
     # activate environment by modifying PATH
-    path = os.environ["PATH"].split(os.pathsep)
-    os.environ["KEEP_PATH"] = path[0]           # old path leader
-    path.remove(path[0])                        # remove default conda env
-    path = (os.pathsep).join(path)
-    path = (os.path.expanduser("~") + "/anaconda/envs/" + env_name + "/bin") + os.pathsep +  path
-    os.environ["PATH"] = path
+    path = env["PATH"].split(os.pathsep)
+    for dirname in path:
+        if "anaconda" in dirname:
+            conda_dir = dirname
+            path.remove(conda_dir)
+            env["ORIG_CONDA_DIR"] = conda_dir
+            break
+    env["PATH"] = prepend_path(conda_dir.replace("bin",  "envs/"+env_name+"/bin"), (os.pathsep).join(path))
 
-    logging.info("env_name: %s, path: %s", env_name, path)
+    logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # install testflo to do the benchmarking
     code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
@@ -288,13 +306,14 @@ def remove_env(env_name, keep_env):
     """
     Deactivate and remove a conda env at the end of a benchmarking run.
     """
-    logging.info("PATH AT FIRST: %s", os.environ["PATH"])
-    path = os.environ["PATH"].split(os.pathsep)
-    path.remove(path[0])  # remove modified
-    path = (os.pathsep).join(path)
-    path = ((os.environ["KEEP_PATH"]) + os.pathsep +  path)
-    logging.info("PATH NOW: %s", path)
-    os.environ["PATH"] = path
+    path = env["PATH"].split(os.pathsep)
+    for dirname in path:
+        if "anaconda" in dirname:
+            path.remove(dirname)
+            break
+    logging.info("PATH AT FIRST: %s", env["PATH"])
+    env["PATH"] = prepend_path(env["ORIG_CONDA_DIR"], (os.pathsep).join(path))
+    logging.info("PATH NOW: %s", env["PATH"])
 
     if not keep_env:
         conda_delete = "conda env remove -y --name " + env_name
@@ -687,7 +706,7 @@ class BenchmarkRunner(object):
             remove_env(run_name, keep_env)
 
     def run_unittests(self, name, trigger_msg):
-        testflo_cmd = "testflo"
+        testflo_cmd = "testflo -vs"
 
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
@@ -833,6 +852,8 @@ def main(args=None):
     if args is None:
         args = sys.argv[1:]
 
+    options = _get_parser().parse_args(args)
+
     # read local configuration if available
     try:
         conf.update(read_json("benchmark.cfg"))
@@ -841,9 +862,11 @@ def main(args=None):
 
     if "env" in conf:
         for key, val in conf["env"].iteritems():
-            os.environ[key] = val
+            env[key] = val
 
-    options = _get_parser().parse_args(args)
+    # prepend benchmark dir to PATH to intercept mpirun command
+    env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
+
 
     with cd(conf["working_dir"]):
         for project in options.projects:
@@ -878,3 +901,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     sys.exit(main())
+
