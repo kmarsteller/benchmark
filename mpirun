@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# usage: mpirun -n # [cmd]
-
+# usage: mpirun -n [#] python mpirun.py [testspec] [host] [port] [key]
+#
 procs=$2
 testspec=$5
 cmd=${@:3}
@@ -11,6 +11,8 @@ name=${testspec##*\.}
 jobfile="$name-$BASHPID.job"
 
 echo "jobfile: $jobfile"
+echo "numproc: $procs"
+echo "command: $cmd"
 
 echo "#!/bin/bash"         >$jobfile
 echo "#$ -pe ompi $procs" >>$jobfile

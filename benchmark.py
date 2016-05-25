@@ -280,7 +280,7 @@ def activate_env(env_name, dependencies, local_repos):
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/swryan/testflo@work")
+    code, out, err = get_exitcode_stdout_stderr("pip install git+https://github.com/naylor-b/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
