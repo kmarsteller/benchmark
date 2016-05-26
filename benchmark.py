@@ -283,7 +283,7 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr( pipinstall + "git+https://github.com/naylor-b/testflo")
+    code, out, err = get_exitcode_stdout_stderr( pipinstall + "git+https://github.com/kmarsteller/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -469,8 +469,7 @@ class BenchmarkDatabase(object):
                 logging.info('INSERTING BenchmarkData %s' % str(row))
                 try:
                     spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
-                    #self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
-                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), 0.0, 0.0, 0.0))
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
 
                     data_added = True
                 except IndexError:
