@@ -470,7 +470,7 @@ class BenchmarkDatabase(object):
                 try:
                     spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
                     #self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
-                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), 0.0, 0.0, 0.0)
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), 0.0, 0.0, 0.0))
 
                     data_added = True
                 except IndexError:
