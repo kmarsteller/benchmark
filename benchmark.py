@@ -283,7 +283,7 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr( pipinstall + "git+https://github.com/kmarsteller/testflo")
+    code, out, err = get_exitcode_stdout_stderr( pipinstall + "git+https://github.com/naylor-b/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
