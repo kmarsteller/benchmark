@@ -52,7 +52,6 @@ conf = {
 }
 
 
-
 #
 # utility functions
 #
@@ -273,13 +272,13 @@ def activate_env(env_name, dependencies, local_repos):
         if "anaconda" in dirname:
             conda_dir = dirname
             path.remove(conda_dir)
-            env["ORIG_CONDA_DIR"] = conda_dir
             break
+    env["ORIG_CONDA_DIR"] = conda_dir
     env["PATH"] = prepend_path(conda_dir.replace("bin",  "envs/"+env_name+"/bin"), (os.pathsep).join(path))
 
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
-    #need to do a pip install with --prefix to get things installed into proper conda env
+    # need to do a pip install with --prefix to get things installed into proper conda env
     pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
@@ -310,11 +309,11 @@ def remove_env(env_name, keep_env):
     Deactivate and remove a conda env at the end of a benchmarking run.
     """
     path = env["PATH"].split(os.pathsep)
+    logging.info("PATH AT FIRST: %s", env["PATH"])
     for dirname in path:
         if "anaconda" in dirname:
             path.remove(dirname)
             break
-    logging.info("PATH AT FIRST: %s", env["PATH"])
     env["PATH"] = prepend_path(env["ORIG_CONDA_DIR"], (os.pathsep).join(path))
     logging.info("PATH NOW: %s", env["PATH"])
 
@@ -469,17 +468,100 @@ class BenchmarkDatabase(object):
                 logging.info('INSERTING BenchmarkData %s' % str(row))
                 try:
                     spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
-                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)", (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
-
+                    self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
+                        (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
                     data_added = True
                 except IndexError:
-                    print("Invalid benchmark specification found in results:\n %s" % str(row))
+                    print("Invalid benchmark data found in results:\n %s" % str(row))
 
         if data_added:
             timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
             self.update_commits(commits, timestamp)
             for dep, ver in installed.items():
                 self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
+
+    def check_benchmarks(self, timestamp=None):
+        """
+        Check the benchmark data from the given timestep for any benchmark with
+        a 10% or greater change in elapsed time or memory usage.
+        If no timetsamp is given then check the most recent benchmark data.
+        """
+        self._ensure_benchmark_data()
+
+        print("Checking benchmarks for timestamp:", timestamp)
+
+        if timestamp is None:
+            for row in self.cursor.execute("SELECT * FROM BenchmarkData ORDER BY DateTime DESC LIMIT 1"):
+                timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
+
+        from datetime import datetime
+        date_str = datetime.fromtimestamp(timestamp)
+
+        curr_data = self.get_benchmark_data(timestamp)
+        if not curr_data:
+            msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
+            logging.warn(msg)
+            print(msg)
+            return
+
+        prev_time = None
+        for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime<? and Status=='OK' ORDER BY DateTime DESC LIMIT 1", (timestamp,)):
+            prev_time = row[0]  # row[0] is the timestamp for this set of benchmark data
+
+        if not prev_time:
+            msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
+            logging.warn(msg)
+            print(msg)
+            return
+
+        prev_data = self.get_benchmark_data(prev_time)
+
+        messages = []
+        for i in range(len(curr_data["spec"])):
+            curr_spec    = curr_data["spec"][i]
+
+            curr_elapsed = curr_data["elapsed"][i]
+            curr_memory  = curr_data["memory"][i]
+            curr_load    = curr_data["load_1m"][i]
+
+            prev_elapsed = prev_data["elapsed"][i]
+            prev_memory  = prev_data["memory"][i]
+            prev_load    = prev_data["load_1m"][i]
+
+            time_delta   = curr_elapsed - prev_elapsed
+            mem_delta    = curr_memory  - prev_memory
+
+            pct_change = 100.*time_delta/prev_elapsed
+            if abs(pct_change) >= 10.:
+                inc_or_dec = "decreased" if (pct_change < 0) else "increased"
+                msg = "Elapsed time for %s %s by %4.1f%% (%5.2f at %3.1f load  vs. %5.2f at %3.1f load)" \
+                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_elapsed, curr_load, prev_elapsed, prev_load)
+                messages.append(msg)
+
+            pct_change = 100.*mem_delta/prev_memory
+            if abs(pct_change) >= 10.:
+                inc_or_dec = "decreased" if (pct_change < 0) else "increased"
+                msg = "Memory usage for %s %s by %4.1f%% (%5.2f  vs. %5.2f)" \
+                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
+                messages.append(msg)
+
+        return messages
+
+    def get_benchmark_data(self, timestamp):
+        """
+        get benchmark data for the given timestamp
+        """
+        data = {}
+        for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime=? and Status=='OK' ORDER BY DateTime", (timestamp,)):
+            data.setdefault('timestamp', []).append(row[0])
+            data.setdefault('spec', []).append(row[1])
+            data.setdefault('status', []).append(row[2])
+            data.setdefault('elapsed', []).append(row[3])
+            data.setdefault('memory', []).append(row[4])
+            data.setdefault('load_1m', []).append(row[5])
+            data.setdefault('load_5m', []).append(row[6])
+            data.setdefault('load_15m', []).append(row[7])
+        return data
 
     def dump(self):
         """
@@ -641,10 +723,10 @@ class BenchmarkRunner(object):
                 # check each trigger for any update since last run
                 with repo(trigger, branch):
                     print('checking trigger', trigger, branch if branch else '')
-                    last_commit = str(db.get_last_commit(trigger))
-                    logging.info("Last CommitID: %s", last_commit)
                     current_commits[trigger] = get_current_commit()
                     logging.info("Current CommitID: %s", current_commits[trigger])
+                    last_commit = str(db.get_last_commit(trigger))
+                    logging.info("Last CommitID: %s", last_commit)
                     if (last_commit != current_commits[trigger]):
                         logging.info("There has been an update to %s\n", trigger)
                         print("There has been an update to %s" % trigger)
@@ -699,9 +781,13 @@ class BenchmarkRunner(object):
                             if rc == 0:
                                 image_url = conf["images"]["url"]
 
-                    # if slack info is provided, post message to slack
+                    # if slack info is provided, post message to slack and
+                    # notify if any benchmarks changed by more than 10%
                     if self.slack:
                         self.post_results(project["name"], trigger_msg, csv_file, image_url)
+                        messages = db.check_benchmarks()
+                        for msg in messages:
+                            self.slack.post_message("<!channel> "+msg)
 
                     if conf["remove_csv"]:
                         os.remove(csv_file)
@@ -720,7 +806,7 @@ class BenchmarkRunner(object):
         logging.info(out)
         logging.warn(err)
 
-        # if failure, post to slack, remove env, notify of failure, quit
+        # if failure, post to slack
         if code and self.slack:
             self.slack.post_message(trigger_msg + "However, unit tests failed... <!channel>")
             fail_msg = "\"%s : regression testing has failed. See attached results file.\"" % name
@@ -743,7 +829,7 @@ class BenchmarkRunner(object):
         """
         pretext = "*%s* benchmarks triggered by " % name
 
-        if len(triggered_by) == 1 and "force" in triggered_by:
+        if triggered_by == ["force"]:
             pretext = pretext + "force:\n"
         else:
             links = []
@@ -834,17 +920,20 @@ def _get_parser():
     parser.add_argument('projects', metavar='project', nargs='*',
                         help='project to benchmark (references a JSON file in the working directory)')
 
-    parser.add_argument('-p', '--plot', metavar='SPEC', action='store', dest='plot',
-                        help='the spec of a benchmark to plot')
-
     parser.add_argument('-f', '--force', action='store_true', dest='force',
                         help='do the benchmark even if nothing has changed')
+
+    parser.add_argument('-u', '--unit-tests', action='store_true', dest='unit_tests',
+                        help='run the unit tests before running the benchmarks.')
 
     parser.add_argument('-k', '--keep-env', action='store_true', dest='keep_env',
                         help='keep the created conda env after execution (usually for troubleshooting purposes)')
 
-    parser.add_argument('-u', '--unit-tests', action='store_true', dest='unit_tests',
-                        help='run the unit tests before running the benchmarks.')
+    parser.add_argument('-p', '--plot', metavar='SPEC', action='store', dest='plot',
+                        help='plot benchmark history for SPEC')
+
+    parser.add_argument('-c', '--check', action='store_true', dest='check',
+                        help='check the most recent benchmark data for >10%% change')
 
     parser.add_argument('-d', '--dump', action='store_true', dest='dump',
                         help='dump the contents of the database to an SQL file')
@@ -874,7 +963,6 @@ def main(args=None):
     # prepend benchmark dir to PATH to intercept mpirun command
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
-
     with cd(conf["working_dir"]):
         for project in options.projects:
 
@@ -887,11 +975,7 @@ def main(args=None):
             project_name = os.path.basename(project_file).rsplit('.', 1)[0]
             project_info["name"] = project_name
 
-            # use a different repo directory for each project
-            conf["repo_dir"] = os.path.expanduser(
-                os.path.join(conf["working_dir"], (project_name+"_repos")))
-
-            # run benchmark or plot as requested
+            # perform requested action, or just run benchmarks
             if options.plot:
                 db = BenchmarkDatabase(project_name)
                 if options.plot == 'all':
@@ -901,7 +985,16 @@ def main(args=None):
             elif options.dump:
                 db = BenchmarkDatabase(project_name)
                 db.dump()
+            elif options.check:
+                db = BenchmarkDatabase(project_name)
+                messages = db.check_benchmarks()
+                for msg in messages:
+                    print(msg)
             else:
+                # use a different repo directory for each project
+                conf["repo_dir"] = os.path.expanduser(
+                    os.path.join(conf["working_dir"], (project_name+"_repos")))
+
                 bm = BenchmarkRunner()
                 bm.run(project_info, options.force, options.keep_env, options.unit_tests)
 
