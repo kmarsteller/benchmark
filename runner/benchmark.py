@@ -484,7 +484,7 @@ class BenchmarkDatabase(object):
         """
         Check the benchmark data from the given timestep for any benchmark with
         a 10% or greater change in elapsed time or memory usage.
-        If no timetsamp is given then check the most recent benchmark data.
+        If no timestamp is given then check the most recent benchmark data.
         """
         self._ensure_benchmark_data()
 
@@ -494,6 +494,12 @@ class BenchmarkDatabase(object):
             for row in self.cursor.execute("SELECT * FROM BenchmarkData ORDER BY DateTime DESC LIMIT 1"):
                 timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
 
+        if timestamp is None:
+            msg = "No benchmark data found"
+            logging.warn(msg)
+            print(msg)
+            return []
+
         from datetime import datetime
         date_str = datetime.fromtimestamp(timestamp)
 
@@ -502,7 +508,7 @@ class BenchmarkDatabase(object):
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
             print(msg)
-            return
+            return []
 
         prev_time = None
         for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime<? and Status=='OK' ORDER BY DateTime DESC LIMIT 1", (timestamp,)):
@@ -512,7 +518,7 @@ class BenchmarkDatabase(object):
             msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
             print(msg)
-            return
+            return []
 
         prev_data = self.get_benchmark_data(prev_time)
 
@@ -792,7 +798,7 @@ class BenchmarkRunner(object):
                     if conf["remove_csv"]:
                         os.remove(csv_file)
 
-            #back up and transfer database
+            # back up and transfer database
             db.backup()
 
             # clean up environment
@@ -956,6 +962,7 @@ def main(args=None):
     except IOError:
         pass
 
+    # add any env vars from the config to the working env
     if "env" in conf:
         for key, val in conf["env"].iteritems():
             env[key] = val
@@ -963,6 +970,7 @@ def main(args=None):
     # prepend benchmark dir to PATH to intercept mpirun command
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
+    # perform the requested operation for each project
     with cd(conf["working_dir"]):
         for project in options.projects:
 
