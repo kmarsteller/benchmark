@@ -799,7 +799,7 @@ class BenchmarkRunner(object):
             remove_env(run_name, keep_env)
 
     def run_unittests(self, name, trigger_msg):
-        testflo_cmd = "testflo -vs"
+        testflo_cmd = "testflo -n 1 -vs"
 
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
@@ -818,7 +818,7 @@ class BenchmarkRunner(object):
         """
         Use testflo to run benchmarks)
         """
-        testflo_cmd = "testflo -bv -d %s" % csv_file
+        testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         print(code, out, err)
         return code
