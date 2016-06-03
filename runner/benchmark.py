@@ -528,11 +528,15 @@ class BenchmarkDatabase(object):
 
             curr_elapsed = curr_data["elapsed"][i]
             curr_memory  = curr_data["memory"][i]
-            curr_load    = curr_data["load_1m"][i]
+            curr_load1   = curr_data["load_1m"][i]
+            curr_load5   = curr_data["load_5m"][i]
+            curr_load15  = curr_data["load_15m"][i]
 
             prev_elapsed = prev_data["elapsed"][i]
             prev_memory  = prev_data["memory"][i]
-            prev_load    = prev_data["load_1m"][i]
+            prev_load1   = prev_data["load_1m"][i]
+            prev_load5   = prev_data["load_5m"][i]
+            prev_load15  = prev_data["load_15m"][i]
 
             time_delta   = curr_elapsed - prev_elapsed
             mem_delta    = curr_memory  - prev_memory
@@ -540,8 +544,10 @@ class BenchmarkDatabase(object):
             pct_change = 100.*time_delta/prev_elapsed
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "Elapsed time for %s %s by %4.1f%% (%5.2f at %3.1f load  vs. %5.2f at %3.1f load)" \
-                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_elapsed, curr_load, prev_elapsed, prev_load)
+                msg = "Elapsed time for %s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
+                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change),
+                       curr_elapsed, curr_load1, curr_load5, curr_load15,
+                       prev_elapsed, prev_load1, prev_load5, prev_load15)
                 messages.append(msg)
 
             pct_change = 100.*mem_delta/prev_memory
