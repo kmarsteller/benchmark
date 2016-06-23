@@ -5,8 +5,8 @@ import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
 
-database_dir = os.path.abspath(os.path.dirname(__file__))
-# database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+#database_dir = os.path.abspath(os.path.dirname(__file__))
+database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -24,7 +24,7 @@ class SpecHandler(tornado.web.RequestHandler):
         print "==> SpecHandler:", project, spec
         print os.path.join(database_dir, project)
         db = BenchmarkDatabase(os.path.join(database_dir, project))
-
+        
         data = {}
         for row in db.cursor.execute('SELECT * FROM BenchmarkData WHERE Spec=? and Status=="OK" ORDER BY DateTime', (spec,)):
             data.setdefault("timestamp", []).append(row[0])
@@ -34,6 +34,10 @@ class SpecHandler(tornado.web.RequestHandler):
             data.setdefault("LoadAvg1m", []).append(row[5])
             data.setdefault("LoadAvg5m", []).append(row[6])
             data.setdefault("LoadAvg15m", []).append(row[7])
+        
+	#not sure how to do this properly
+        #for row in db.cursor.execute('SELECT CommitID FROM Commits WHERE DateTime==? ORDER BY DateTime', ()):
+	#    data.setdefault("commit", []).append(row[8])
 
         # NOTE: this dictionary is probably not the best data structure to use here
         #       (depending on the ultimate means of rendering it to HTML)
@@ -45,7 +49,7 @@ class SpecHandler(tornado.web.RequestHandler):
             response = "{:s}: {:s}\n".format(project, spec)
             line_fmt = "{:s} {:4s} {:7.2f} {:7.2f} {:7.2f} {:7.2f} {:7.2f}\n"
             for i in range(len(data["timestamp"])):
-                response += line_fmt.format(
+                response += line_fmt.format(            
                     str(datetime.fromtimestamp(data["timestamp"][i])),
                     data["status"][i],
                     data["elapsed"][i],
@@ -54,14 +58,17 @@ class SpecHandler(tornado.web.RequestHandler):
                     data["LoadAvg5m"][i],
                     data["LoadAvg15m"][i]
                 )
-
-        self.write(response)
+            bench_title = "Benchmark Results for " + spec
+            def date(timestamp):
+		return str(datetime.fromtimestamp(timestamp)) 
+        self.render("template.html", title=bench_title, items=data, date=date)
 
 def make_app():
     return tornado.web.Application([
         (r"/(.*)/(.*)", SpecHandler),
         (r"/(.*)",      ProjectHandler),
         (r"/",          MainHandler),
+        (r"/*.js", tornado.web.StaticFileHandler, dict(path='.'))
     ], debug=True)
 
 if __name__ == "__main__":

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta http-equiv="Content-type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width,initial-scale=1">
+	<title>Benchmark Results</title>
+	<link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://www.datatables.net/rss.xml">
+	<link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
+	<script type="text/javascript" language="javascript" src="//code.jquery.com/jquery-1.12.3.js">
+	</script>
+	<script type="text/javascript" language="javascript" src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js">
+	</script>
+	<script type="text/javascript" class="init">
+$(document).ready(function() {
+	$('#example').DataTable();
+} );
+	</script>
+</head>
+
+<body class="wide comments example">
+	<a name="top" id="top"></a>
+	<div class="fw-container">
+		<div class="fw-body">
+			<div class="content">
+				<h1 class="page_title">{{ title }}</h1>
+				<div class="info">
+				</div>
+				<table id="example" class="display" cellspacing="0" width="100%">
+					<thead>
+						<tr>
+                                                        <th>Date</th>
+                                                        <th>Commit</th>
+							<th>Status</th>
+							<th>Elaspsed</th>
+							<th>Mem Use</th>
+							<th>LoadAvg1m</th>
+							<th>LoadAvg5m</th>
+							<th>LoadAvg15m</th>
+						</tr>
+					</thead>
+ 						{% set i = 0 %}
+						{% for key in items %}
+						<tr>
+                                                     <td align="center">{{ date(items['timestamp'][i]) }}</td>
+                                                     <td align="center"><a href="https://github.com/OpenMDAO/OpenMDAO/commit/"{{ "9f3ccf69fa259594186823a41482a68ffeda1e8f" }}>Github Commit</a></td>
+                                                     <td align="center">{{items['status'][i]}}</td>
+                                                     <td align="center">{{items['elapsed'][i]}}</td>
+					             <td align="center">{{items['memory'][i]}}</td>
+					             <td align="center">{{items['LoadAvg1m'][i]}}</td>
+					 	     <td align="center">{{items['LoadAvg5m'][i]}}</td>
+					   	     <td align="center">{{items['LoadAvg15m'][i]}}</td>
+						</tr>
+						{% set i = i+1; %}
+						{% end %}
+				</table>
+		</div>
+</body>
+</html>
+	
