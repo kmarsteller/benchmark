@@ -28,7 +28,7 @@ $(document).ready(function() {
                         <tr>
                             <th>Date</th>
                             <th>Status</th>
-                            <th>Elaspsed</th>
+                            <th>Elapsed</th>
                             <th>Mem Use</th>
                             <th>LoadAvg1m</th>
                             <th>LoadAvg5m</th>
@@ -47,7 +47,7 @@ $(document).ready(function() {
                             <td align="center">{{items['LoadAvg15m'][i]}}</td>
                             <td align="center">
                                 {% for name, url in items['commits'][i] %}
-                                    <a href="{{url}}">{{name}}</a>
+                                    <a  title="{{url.rsplit('/', 1)[1][0:6]}}" href="{{url}}">{{name}}</a>
                                 {% end %}
                             </td>
                         </tr>
