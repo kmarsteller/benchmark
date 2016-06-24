@@ -28,7 +28,7 @@ class SpecHandler(tornado.web.RequestHandler):
         db = BenchmarkDatabase(os.path.join(database_dir, project))
 
         data = {}
-        for row in db.cursor.execute('SELECT * FROM BenchmarkData WHERE Spec=? and Status=="OK" ORDER BY DateTime', (spec,)):
+        for row in db.cursor.execute('SELECT * FROM BenchmarkData WHERE Spec=? and Status=="OK" ORDER BY DateTime ASC', (spec,)):
             data.setdefault("timestamp", []).append(row[0])
             data.setdefault("status", []).append(row[2])
             data.setdefault("elapsed", []).append(row[3])
