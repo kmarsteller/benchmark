@@ -765,20 +765,44 @@ class BenchmarkRunner(object):
                 # install project
                 get_exitcode_stdout_stderr("pip install -e .")
 
-                # get list of installed dependencies
-                installed_deps = {}
-                rc, out, err = get_exitcode_stdout_stderr("pip list")
-                for line in out.split('\n'):
-                    name_ver = line.split(" ", 1)
-                    if len(name_ver) == 2:
-                        installed_deps[name_ver[0]] = name_ver[1]
-
                 # run unit tests
                 if unit_tests:
-                    rc = self.run_unittests(project["name"], trigger_msg)
+                    bad_commit = False
+
+                    # if unit testing fails, the commit will be recorded in fail_file
+                    fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
+
+                    # check if this commit has already failed unit testing
+                    if os.path.exists(fail_file):
+                        with open(fail_file, "r") as f:
+                            failed_commit = f.read()
+                            print("failed commit:", failed_commit, "current_commit:", current_commits[project["repository"]])
+                            if current_commits[project["repository"]] == failed_commit:
+                                print("This commit has already failed unit testing.")
+                                logging.info("This commit has already failed unit testing.")
+                                bad_commit = True
+                            else:
+                                # the failed commit is no longer the current commit, delete fail_file
+                                os.remove(fail_file)
+
+                    # only run the unit tests if it's not a bad commit
+                    if not bad_commit:
+                        rc = self.run_unittests(project["name"], trigger_msg)
+                        if rc:
+                            with open(fail_file, "w") as f:
+                                f.write(current_commits[project["repository"]])
+                            bad_commit = True
 
                 # run benchmarks and add data to database
-                if not unit_tests or not rc:
+                if not unit_tests or not bad_commit:
+                    # get list of installed dependencies
+                    installed_deps = {}
+                    rc, out, err = get_exitcode_stdout_stderr("pip list")
+                    for line in out.split('\n'):
+                        name_ver = line.split(" ", 1)
+                        if len(name_ver) == 2:
+                            installed_deps[name_ver[0]] = name_ver[1]
+
                     csv_file = run_name+".csv"
                     self.run_benchmarks(csv_file)
                     db.add_benchmark_data(current_commits, csv_file, installed_deps)
@@ -869,7 +893,7 @@ class BenchmarkRunner(object):
         names = []
         rslts = []
         color = "good"
-        with open(filename, 'r') as csvfile:
+        with open(filename, "r") as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
                 try:
