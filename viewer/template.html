@@ -10,8 +10,12 @@
     <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"> </script>
     <script type="text/javascript" class="init">
 $(document).ready(function() {
-    $('#example').DataTable();
-} );
+  $('#example').DataTable( {
+     "ordering": true,
+     "order": [[ 0, 'desc' ]]
+  })
+});
+
     </script>
 </head>
 
@@ -47,7 +51,7 @@ $(document).ready(function() {
                             <td align="center">{{items['LoadAvg15m'][i]}}</td>
                             <td align="center">
                                 {% for name, url in items['commits'][i] %}
-                                    <a  title="{{url.rsplit('/', 1)[1][0:6]}}" href="{{url}}">{{name}}</a>
+                                    <a  title="{{url.rsplit('/', 1)[1][0:7]}}" href="{{url}}">{{name}}</a>
                                 {% end %}
                             </td>
                         </tr>
