@@ -5,8 +5,8 @@ import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
 
-database_dir = os.path.abspath(os.path.dirname(__file__))
-# database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+#database_dir = os.path.abspath(os.path.dirname(__file__))
+database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
 class MainHandler(tornado.web.RequestHandler):
