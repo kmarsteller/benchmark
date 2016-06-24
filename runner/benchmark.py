@@ -484,7 +484,7 @@ class BenchmarkDatabase(object):
         """
         Check the benchmark data from the given timestep for any benchmark with
         a 10% or greater change in elapsed time or memory usage.
-        If no timetsamp is given then check the most recent benchmark data.
+        If no timestamp is given then check the most recent benchmark data.
         """
         self._ensure_benchmark_data()
 
@@ -494,6 +494,12 @@ class BenchmarkDatabase(object):
             for row in self.cursor.execute("SELECT * FROM BenchmarkData ORDER BY DateTime DESC LIMIT 1"):
                 timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
 
+        if timestamp is None:
+            msg = "No benchmark data found"
+            logging.warn(msg)
+            print(msg)
+            return []
+
         from datetime import datetime
         date_str = datetime.fromtimestamp(timestamp)
 
@@ -502,7 +508,7 @@ class BenchmarkDatabase(object):
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
             print(msg)
-            return
+            return []
 
         prev_time = None
         for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime<? and Status=='OK' ORDER BY DateTime DESC LIMIT 1", (timestamp,)):
@@ -512,7 +518,7 @@ class BenchmarkDatabase(object):
             msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
             print(msg)
-            return
+            return []
 
         prev_data = self.get_benchmark_data(prev_time)
 
@@ -522,11 +528,15 @@ class BenchmarkDatabase(object):
 
             curr_elapsed = curr_data["elapsed"][i]
             curr_memory  = curr_data["memory"][i]
-            curr_load    = curr_data["load_1m"][i]
+            curr_load1   = curr_data["load_1m"][i]
+            curr_load5   = curr_data["load_5m"][i]
+            curr_load15  = curr_data["load_15m"][i]
 
             prev_elapsed = prev_data["elapsed"][i]
             prev_memory  = prev_data["memory"][i]
-            prev_load    = prev_data["load_1m"][i]
+            prev_load1   = prev_data["load_1m"][i]
+            prev_load5   = prev_data["load_5m"][i]
+            prev_load15  = prev_data["load_15m"][i]
 
             time_delta   = curr_elapsed - prev_elapsed
             mem_delta    = curr_memory  - prev_memory
@@ -534,8 +544,10 @@ class BenchmarkDatabase(object):
             pct_change = 100.*time_delta/prev_elapsed
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "Elapsed time for %s %s by %4.1f%% (%5.2f at %3.1f load  vs. %5.2f at %3.1f load)" \
-                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_elapsed, curr_load, prev_elapsed, prev_load)
+                msg = "Elapsed time for %s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
+                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change),
+                       curr_elapsed, curr_load1, curr_load5, curr_load15,
+                       prev_elapsed, prev_load1, prev_load5, prev_load15)
                 messages.append(msg)
 
             pct_change = 100.*mem_delta/prev_memory
@@ -753,20 +765,44 @@ class BenchmarkRunner(object):
                 # install project
                 get_exitcode_stdout_stderr("pip install -e .")
 
-                # get list of installed dependencies
-                installed_deps = {}
-                rc, out, err = get_exitcode_stdout_stderr("pip list")
-                for line in out.split('\n'):
-                    name_ver = line.split(" ", 1)
-                    if len(name_ver) == 2:
-                        installed_deps[name_ver[0]] = name_ver[1]
-
                 # run unit tests
                 if unit_tests:
-                    rc = self.run_unittests(project["name"], trigger_msg)
+                    bad_commit = False
+
+                    # if unit testing fails, the commit will be recorded in fail_file
+                    fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
+
+                    # check if this commit has already failed unit testing
+                    if os.path.exists(fail_file):
+                        with open(fail_file, "r") as f:
+                            failed_commit = f.read()
+                            print("failed commit:", failed_commit, "current_commit:", current_commits[project["repository"]])
+                            if current_commits[project["repository"]] == failed_commit:
+                                print("This commit has already failed unit testing.")
+                                logging.info("This commit has already failed unit testing.")
+                                bad_commit = True
+                            else:
+                                # the failed commit is no longer the current commit, delete fail_file
+                                os.remove(fail_file)
+
+                    # only run the unit tests if it's not a bad commit
+                    if not bad_commit:
+                        rc = self.run_unittests(project["name"], trigger_msg)
+                        if rc:
+                            with open(fail_file, "w") as f:
+                                f.write(current_commits[project["repository"]])
+                            bad_commit = True
 
                 # run benchmarks and add data to database
-                if not unit_tests or not rc:
+                if not unit_tests or not bad_commit:
+                    # get list of installed dependencies
+                    installed_deps = {}
+                    rc, out, err = get_exitcode_stdout_stderr("pip list")
+                    for line in out.split('\n'):
+                        name_ver = line.split(" ", 1)
+                        if len(name_ver) == 2:
+                            installed_deps[name_ver[0]] = name_ver[1]
+
                     csv_file = run_name+".csv"
                     self.run_benchmarks(csv_file)
                     db.add_benchmark_data(current_commits, csv_file, installed_deps)
@@ -792,14 +828,14 @@ class BenchmarkRunner(object):
                     if conf["remove_csv"]:
                         os.remove(csv_file)
 
-            #back up and transfer database
+            # back up and transfer database
             db.backup()
 
             # clean up environment
             remove_env(run_name, keep_env)
 
     def run_unittests(self, name, trigger_msg):
-        testflo_cmd = "testflo -vs"
+        testflo_cmd = "testflo -n 1 -vs"
 
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
@@ -818,7 +854,7 @@ class BenchmarkRunner(object):
         """
         Use testflo to run benchmarks)
         """
-        testflo_cmd = "testflo -bv -d %s" % csv_file
+        testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         print(code, out, err)
         return code
@@ -857,7 +893,7 @@ class BenchmarkRunner(object):
         names = []
         rslts = []
         color = "good"
-        with open(filename, 'r') as csvfile:
+        with open(filename, "r") as csvfile:
             reader = csv.reader(csvfile)
             for row in reader:
                 try:
@@ -956,6 +992,7 @@ def main(args=None):
     except IOError:
         pass
 
+    # add any env vars from the config to the working env
     if "env" in conf:
         for key, val in conf["env"].iteritems():
             env[key] = val
@@ -963,6 +1000,7 @@ def main(args=None):
     # prepend benchmark dir to PATH to intercept mpirun command
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
+    # perform the requested operation for each project
     with cd(conf["working_dir"]):
         for project in options.projects:
 
