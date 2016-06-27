@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+    <title>Benchmark Results</title>
+    <script type="text/javascript" class="init">
+
+$(document).ready(function() {
+  $('#proj_handler').DataTable( {
+  })
+});
+    </script>
+</head>
+
+<body>
+  <h1 class="page_title">{{ title }} available specs:</h1>
+    {% for i in range(len(spec)) %}
+            <p><a  href="http://openmdao.org/benchmark/{{ title }}/{{spec[i]}}">{{spec[i]}}</a>
+    {% end %}
+</body>
+</html>
+

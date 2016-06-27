@@ -12,14 +12,27 @@ database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
         print "==> MainHandler:", self.request.uri
-        self.write(self.request.uri)
-
+        dbs = []
+        for file in os.listdir(database_dir):
+          if file.endswith(".db"):
+            print "    "+file
+            dbs.append(file.lsplit(".")[0])
+        self.render("main_template.html", dbs=dbs)
+        
 
 class ProjectHandler(tornado.web.RequestHandler):
     def get(self, project):
         print "==> ProjectHandler:", project
-        self.write("Project: "+project)
-
+        print os.path.join(database_dir, project)
+        if (project+".db") not in os.listdir(database_dir):
+            print "      PROJECT " + project + " DOES NOT EXIST."
+            return            
+        db = BenchmarkDatabase(os.path.join(database_dir, project))
+        specs=[]
+        for row in db.cursor.execute('SELECT * FROM BenchmarkData WHERE Status=="OK" ORDER BY DateTime'):
+            if (row[1] not in specs):
+              specs.append(row[1])
+        self.render("proj_template.html", title=project, spec=specs)
 
 class SpecHandler(tornado.web.RequestHandler):
     def get(self, project, spec):
@@ -38,7 +51,6 @@ class SpecHandler(tornado.web.RequestHandler):
             data.setdefault("LoadAvg15m", []).append(row[7])
 
         commits = []
-
         for timestamp in data['timestamp']:
             tmp_list = []
             for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==? ORDER BY DateTime', (timestamp,)):
@@ -74,7 +86,6 @@ def make_app():
         (r"/(.*)/(.*)", SpecHandler),
         (r"/(.*)",      ProjectHandler),
         (r"/",          MainHandler),
-        (r"/*.js", tornado.web.StaticFileHandler, dict(path='.'))
     ], debug=True)
 
 if __name__ == "__main__":
