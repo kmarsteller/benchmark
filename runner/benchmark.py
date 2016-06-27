@@ -544,7 +544,9 @@ class BenchmarkDatabase(object):
 
         prev_data = self.get_data_for_timestamp(prev_time)
 
-        messages = []
+        cpu_messages = []
+        mem_messages = []
+
         for i in range(len(curr_data["spec"])):
             curr_spec    = curr_data["spec"][i]
 
@@ -563,21 +565,33 @@ class BenchmarkDatabase(object):
             time_delta   = curr_elapsed - prev_elapsed
             mem_delta    = curr_memory  - prev_memory
 
+            url = conf["url"]+self.name+'/'+curr_spec
+
             pct_change = 100.*time_delta/prev_elapsed
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "Elapsed time for %s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
-                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change),
+                msg = "<%s|%s> %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
+                    % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change),
                        curr_elapsed, curr_load1, curr_load5, curr_load15,
                        prev_elapsed, prev_load1, prev_load5, prev_load15)
-                messages.append(msg)
+                cpu_messages.append(msg)
 
             pct_change = 100.*mem_delta/prev_memory
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "Memory usage for %s %s by %4.1f%% (%5.2f  vs. %5.2f)" \
-                    % (curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
-                messages.append(msg)
+                msg = "<%s|%s> %s by %4.1f%% (%5.2f  vs. %5.2f)" \
+                    % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
+                mem_messages.append(msg)
+
+        messages = []
+
+        if cpu_messages:
+            messages.append("The following %s benchmarks had a significant change in elapsed time:\n" % self.name +
+                            '\n'.join(cpu_messages))
+
+        if mem_messages:
+            messages.append("The following %s benchmarks had a significant change in memory usage:\n" % self.name +
+                            '\n'.join(mem_messages))
 
         return messages
 
@@ -732,7 +746,7 @@ class BenchmarkDatabase(object):
 
             # initialize max values to set y limit
             # max_elapsed = 0
-            # max_maxrss = 0
+            # max_memory = 0
 
             # select only the specs that have more than one data point
             select_specs = []
@@ -741,7 +755,7 @@ class BenchmarkDatabase(object):
                 if data and len(data['elapsed']) > 1:
                     select_specs.append(spec)
                     # max_elapsed = max(max_elapsed, max(data['elapsed']))
-                    # max_maxrss  = max(max_maxrss, max(data['memory']))
+                    # max_memory  = max(max_memory, max(data['memory']))
 
             specs = select_specs
 
@@ -757,18 +771,21 @@ class BenchmarkDatabase(object):
 
                 # initialize max values to set y limit
                 max_elapsed = 0
-                max_maxrss = 0
+                max_memory = 0
 
                 for spec in plot_specs:
                     data = self.get_data_for_spec(spec)
 
-                    timestamps = [datetime.fromtimestamp(timestamp) for timestamp in data['timestamp']]
-                    timestamp  = dates.date2num(timestamps)
-                    elapsed    = np.array(data['elapsed'])
-                    memory     = np.array(data['memory'])
+                    # only plot data for othe last 30 benchmark runs
+                    num_runs = 30
 
-                    max_elapsed = max(max_elapsed, max(data['elapsed']))
-                    max_maxrss  = max(max_maxrss, max(data['memory']))
+                    timestamps = [datetime.fromtimestamp(timestamp) for timestamp in data['timestamp'][-num_runs:]]
+                    timestamp  = dates.date2num(timestamps)
+                    elapsed    = np.array(data['elapsed'][-num_runs:])
+                    memory     = np.array(data['memory'][-num_runs:])
+
+                    max_elapsed = max(max_elapsed, np.max(elapsed))
+                    max_memory  = max(max_memory, np.max(memory))
 
                     a1 = pyplot.subplot(3, 1, 1)
                     pyplot.plot_date(timestamp, elapsed, '.-', label=spec)
@@ -789,7 +806,7 @@ class BenchmarkDatabase(object):
                     pyplot.xticks(rotation=45)
 
                     a1.set_ylim(0, max_elapsed*1.15)
-                    a2.set_ylim(0, max_maxrss*1.15)
+                    a2.set_ylim(0, max_memory*1.15)
 
                     pyplot.legend(plot_specs, loc=9, prop={'size': 8}, bbox_to_anchor=(0.5, -0.3))
 
@@ -966,7 +983,7 @@ class BenchmarkRunner(object):
                         # post message that benchmarks were run with summary plot(s)
                         self.slack.post_message(trigger_msg)
                         for plot_file in summary_plots:
-                            self.slack.post_image(plot_file, "/".join([image_url, plot_file]))
+                            self.slack.post_image("", "/".join([image_url, plot_file]))
 
                         # post message for any benchmarks that showed significant change
                         messages = db.check_benchmarks()
@@ -1011,7 +1028,7 @@ class BenchmarkRunner(object):
         """
         list specific commits (in link form)that caused this bench run
         """
-        pretext = "*%s* benchmarks triggered by " % name
+        pretext = "*%s* benchmarks (<%s|link>) triggered by " % (name, conf["url"]+name)
 
         if triggered_by == ["force"]:
             pretext = pretext + "force:\n"
