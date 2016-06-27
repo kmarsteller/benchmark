@@ -78,7 +78,7 @@ class SpecHandler(tornado.web.RequestHandler):
             def date(timestamp):
                 return str(datetime.fromtimestamp(timestamp))
 
-            self.render("template.html", title=bench_title, items=data, date=date)
+            self.render("spec_template.html", title=bench_title, items=data, date=date)
 
 
 def make_app():
