@@ -14,6 +14,11 @@ import json
 import csv
 import math
 
+from datetime import datetime
+# from pprint import pprint
+
+import numpy as np
+
 import logging
 logging.basicConfig(level=logging.DEBUG)
 
@@ -353,6 +358,24 @@ class Slack(object):
 
         return self.post_payload(payload)
 
+    def post_image(self, title, image_url):
+        """
+        post an image
+        """
+        payload = {
+            "attachments": [
+                {
+                    "fallback":  title,
+                    "pretext":   title,
+                    "image_url": image_url
+                }
+            ],
+            "unfurl_links": "true",
+            "unfurl_media": "true"
+        }
+
+        return self.post_payload(payload)
+
     def post_payload(self, payload):
         """
         post a payload
@@ -500,10 +523,9 @@ class BenchmarkDatabase(object):
             print(msg)
             return []
 
-        from datetime import datetime
         date_str = datetime.fromtimestamp(timestamp)
 
-        curr_data = self.get_benchmark_data(timestamp)
+        curr_data = self.get_data_for_timestamp(timestamp)
         if not curr_data:
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
@@ -520,7 +542,7 @@ class BenchmarkDatabase(object):
             print(msg)
             return []
 
-        prev_data = self.get_benchmark_data(prev_time)
+        prev_data = self.get_data_for_timestamp(prev_time)
 
         messages = []
         for i in range(len(curr_data["spec"])):
@@ -559,11 +581,12 @@ class BenchmarkDatabase(object):
 
         return messages
 
-    def get_benchmark_data(self, timestamp):
+    def get_data_for_timestamp(self, timestamp):
         """
         get benchmark data for the given timestamp
         """
         data = {}
+
         for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime=? and Status=='OK' ORDER BY DateTime", (timestamp,)):
             data.setdefault('timestamp', []).append(row[0])
             data.setdefault('spec', []).append(row[1])
@@ -573,6 +596,24 @@ class BenchmarkDatabase(object):
             data.setdefault('load_1m', []).append(row[5])
             data.setdefault('load_5m', []).append(row[6])
             data.setdefault('load_15m', []).append(row[7])
+
+        return data
+
+    def get_data_for_spec(self, spec):
+        """
+        get benchmark data for the given spec
+        """
+        data = {}
+
+        for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
+            data.setdefault('timestamp', []).append(row[0])
+            data.setdefault('status', []).append(row[2])
+            data.setdefault('elapsed', []).append(row[3])
+            data.setdefault('memory', []).append(row[4])
+            data.setdefault('LoadAvg1m', []).append(row[5])
+            data.setdefault('LoadAvg5m', []).append(row[6])
+            data.setdefault('LoadAvg15m', []).append(row[7])
+
         return data
 
     def dump(self):
@@ -599,6 +640,12 @@ class BenchmarkDatabase(object):
 
         return [f for f in filenames if f is not None]
 
+    def get_specs(self):
+        specs = []
+        for row in self.cursor.execute("SELECT DISTINCT Spec FROM BenchmarkData"):
+            specs.append(row[0])
+        return specs
+
     def plot_benchmark_data(self, spec=None, show=True, save=False):
         """
         generate a history plot for a benchmark
@@ -611,21 +658,11 @@ class BenchmarkDatabase(object):
         filename = None
 
         try:
-            import numpy as np
             import matplotlib
             matplotlib.use('Agg')
             from matplotlib import pyplot, ticker
 
-            data = {}
-            for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE Spec=? and Status=='OK' ORDER BY DateTime", (spec,)):
-                logging.info('row: %s', str(row))
-                data.setdefault('timestamp', []).append(row[0])
-                data.setdefault('status', []).append(row[2])
-                data.setdefault('elapsed', []).append(row[3])
-                data.setdefault('memory', []).append(row[4])
-                data.setdefault('LoadAvg1m', []).append(row[5])
-                data.setdefault('LoadAvg5m', []).append(row[6])
-                data.setdefault('LoadAvg15m', []).append(row[7])
+            data = self.get_data_for_spec(spec)
 
             if not data:
                 logging.warn("No data to plot for %s", spec)
@@ -656,8 +693,10 @@ class BenchmarkDatabase(object):
 
             label = spec.rsplit(':', 1)[1]
             pyplot.title(label.replace(".benchmark_", ": "))
+
             if show:
                 pyplot.show()
+
             if save:
                 filename = spec.replace(":", "_") + ".png"
                 pyplot.savefig(filename)
@@ -669,6 +708,106 @@ class BenchmarkDatabase(object):
             print(traceback.format_exc())
 
         return filename
+
+    def plot_benchmarks(self, show=True, save=False):
+        """
+        generate a history plot for this projects benchmarks
+        """
+        logging.info('plot: %s', self.name)
+        filenames = []
+
+        try:
+            import matplotlib
+            matplotlib.use('Agg')
+            from matplotlib import pyplot, dates
+
+            colormap = pyplot.cm.gist_ncar
+
+            mondays = dates.WeekdayLocator(dates.MONDAY)        # major ticks on the mondays
+            weekFmt = dates.DateFormatter('%b %d')  # e.g., Jan 12
+
+            self._ensure_benchmark_data()
+
+            specs = self.get_specs()
+
+            # initialize max values to set y limit
+            # max_elapsed = 0
+            # max_maxrss = 0
+
+            # select only the specs that have more than one data point
+            select_specs = []
+            for spec in specs:
+                data = self.get_data_for_spec(spec)
+                if data and len(data['elapsed']) > 1:
+                    select_specs.append(spec)
+                    # max_elapsed = max(max_elapsed, max(data['elapsed']))
+                    # max_maxrss  = max(max_maxrss, max(data['memory']))
+
+            specs = select_specs
+
+            plot_count = int(math.ceil(len(specs)/10.))
+            for plot_no in range(plot_count):
+                pyplot.figure()
+
+                # select up to 10 specs to plot
+                plot_specs = specs[:10]
+                specs = specs[10:]
+
+                pyplot.gca().set_color_cycle([colormap(i) for i in np.linspace(0, 0.9, len(plot_specs))])
+
+                # initialize max values to set y limit
+                max_elapsed = 0
+                max_maxrss = 0
+
+                for spec in plot_specs:
+                    data = self.get_data_for_spec(spec)
+
+                    timestamps = [datetime.fromtimestamp(timestamp) for timestamp in data['timestamp']]
+                    timestamp  = dates.date2num(timestamps)
+                    elapsed    = np.array(data['elapsed'])
+                    memory     = np.array(data['memory'])
+
+                    max_elapsed = max(max_elapsed, max(data['elapsed']))
+                    max_maxrss  = max(max_maxrss, max(data['memory']))
+
+                    a1 = pyplot.subplot(3, 1, 1)
+                    pyplot.plot_date(timestamp, elapsed, '.-', label=spec)
+                    pyplot.ylabel('elapsed time')
+
+                    a2 = pyplot.subplot(3, 1, 2)
+                    pyplot.plot_date(timestamp, memory, '.-', label=spec)
+                    pyplot.ylabel('memory usage')
+
+                    # format the ticks
+                    a1.set_xticks([])
+                    a2.xaxis.set_minor_locator(mondays)
+                    a2.xaxis.set_major_formatter(weekFmt)
+                    for tick in a2.xaxis.get_major_ticks():
+                        # specify integer or one of preset strings, e.g.
+                        # tick.label.set_fontsize(10)
+                        tick.label.set_fontsize('x-small')
+                    pyplot.xticks(rotation=45)
+
+                    a1.set_ylim(0, max_elapsed*1.15)
+                    a2.set_ylim(0, max_maxrss*1.15)
+
+                    pyplot.legend(plot_specs, loc=9, prop={'size': 8}, bbox_to_anchor=(0.5, -0.3))
+
+                if show:
+                    pyplot.show()
+
+                if save:
+                    filename = self.name + str(plot_no) + ".png"
+                    pyplot.savefig(filename)
+                    code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
+                    filenames.append(filename)
+
+        except ImportError:
+            logging.info("numpy and matplotlib are required to plot benchmark data.")
+            print("numpy and matplotlib are required to plot benchmark data.")
+            print(traceback.format_exc())
+
+        return filenames
 
     def backup(self):
         """
@@ -809,18 +948,27 @@ class BenchmarkRunner(object):
 
                     # generate plots if requested and upload if image location is provided
                     image_url = None
+                    summary_plots = []
                     images = conf.get("images")
                     if conf["plot_history"]:
                         plots = db.plot_all()
-                        if images and plots:
-                            rc = upload(plots, conf["images"]["upload"])
+                        summary_plots = db.plot_benchmarks(save=True)
+                        if images and plots + summary_plots:
+                            rc = upload(plots + summary_plots, conf["images"]["upload"])
                             if rc == 0:
                                 image_url = conf["images"]["url"]
 
                     # if slack info is provided, post message to slack and
                     # notify if any benchmarks changed by more than 10%
                     if self.slack:
-                        self.post_results(project["name"], trigger_msg, csv_file, image_url)
+                        # self.post_results(project["name"], trigger_msg, csv_file, image_url)
+
+                        # post message that benchmarks were run with summary plot(s)
+                        self.slack.post_message(trigger_msg)
+                        for plot_file in summary_plots:
+                            self.slack.post_image(plot_file, "/".join([image_url, plot_file]))
+
+                        # post message for any benchmarks that showed significant change
                         messages = db.check_benchmarks()
                         for msg in messages:
                             self.slack.post_message("<!channel> "+msg)
@@ -1017,7 +1165,7 @@ def main(args=None):
             if options.plot:
                 db = BenchmarkDatabase(project_name)
                 if options.plot == 'all':
-                    db.plot_all()
+                    db.plot_benchmarks()
                 else:
                     db.plot_benchmark_data(options.plot)
             elif options.dump:
