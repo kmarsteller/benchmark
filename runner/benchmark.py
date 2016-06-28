@@ -584,19 +584,20 @@ class BenchmarkDatabase(object):
                 mem_messages.append(msg)
 
         # group messages into sets of max_messages
-        messages = []
-        max_messages = 9
+        cpu_msg_groups = []
+        mem_msg_groups = []
+        max_messages = 10
+
         while cpu_messages:
-            messages.append("The following %s benchmarks had a significant change in elapsed time:\n" % self.name +
-                            '\n'.join(cpu_messages[:max_messages]))
+            print()
+            cpu_msg_groups.append('\n'.join(cpu_messages[:max_messages]))
             cpu_messages = cpu_messages[max_messages:]
 
         while mem_messages:
-            messages.append("The following %s benchmarks had a significant change in elapsed time:\n" % self.name +
-                            '\n'.join(mem_messages[:max_messages]))
+            mem_msg_groups.append('\n'.join(mem_messages[:max_messages]))
             mem_messages = mem_messages[max_messages:]
 
-        return messages
+        return cpu_msg_groups, mem_msg_groups
 
     def get_data_for_timestamp(self, timestamp):
         """
@@ -780,7 +781,7 @@ class BenchmarkDatabase(object):
                     data = self.get_data_for_spec(spec)
 
                     # only plot data for othe last 30 benchmark runs
-                    num_runs = 30
+                    num_runs = 20
 
                     timestamps = [datetime.fromtimestamp(timestamp) for timestamp in data['timestamp'][-num_runs:]]
                     timestamp  = dates.date2num(timestamps)
@@ -968,10 +969,11 @@ class BenchmarkRunner(object):
 
                     # generate plots if requested and upload if image location is provided
                     image_url = None
+                    plots = []
                     summary_plots = []
                     images = conf.get("images")
                     if conf["plot_history"]:
-                        plots = db.plot_all()
+                        # plots = db.plot_all()
                         summary_plots = db.plot_benchmarks(save=True)
                         if images and plots + summary_plots:
                             rc = upload(plots + summary_plots, conf["images"]["upload"])
@@ -983,15 +985,21 @@ class BenchmarkRunner(object):
                     if self.slack:
                         # self.post_results(project["name"], trigger_msg, csv_file, image_url)
 
-                        # post message that benchmarks were run with summary plot(s)
+                        # post message that benchmarks were run and summary plot(s)
                         self.slack.post_message(trigger_msg)
                         for plot_file in summary_plots:
                             self.slack.post_image("", "/".join([image_url, plot_file]))
 
                         # post message for any benchmarks that showed significant change
-                        messages = db.check_benchmarks()
-                        for msg in messages:
-                            self.slack.post_message("<!channel> "+msg)
+                        cpu_messages, mem_messages = db.check_benchmarks()
+                        if cpu_messages:
+                            self.slack.post_message("<!channel> The following %s benchmarks had a significant change in elapsed time:\n" % project["name"])
+                            for msg in cpu_messages:
+                                self.slack.post_message(msg)
+                        if mem_messages:
+                            self.slack.post_message("<!channel> The following %s benchmarks had a significant change in memory usage:\n" % project["name"])
+                            for msg in mem_messages:
+                                self.slack.post_message(msg)
 
                     if conf["remove_csv"]:
                         os.remove(csv_file)
