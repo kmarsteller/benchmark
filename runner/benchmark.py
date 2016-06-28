@@ -583,15 +583,18 @@ class BenchmarkDatabase(object):
                     % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
                 mem_messages.append(msg)
 
+        # group messages into sets of max_messages
         messages = []
-
-        if cpu_messages:
+        max_messages = 9
+        while cpu_messages:
             messages.append("The following %s benchmarks had a significant change in elapsed time:\n" % self.name +
-                            '\n'.join(cpu_messages))
+                            '\n'.join(cpu_messages[:max_messages]))
+            cpu_messages = cpu_messages[max_messages:]
 
-        if mem_messages:
-            messages.append("The following %s benchmarks had a significant change in memory usage:\n" % self.name +
-                            '\n'.join(mem_messages))
+        while mem_messages:
+            messages.append("The following %s benchmarks had a significant change in elapsed time:\n" % self.name +
+                            '\n'.join(mem_messages[:max_messages]))
+            mem_messages = mem_messages[max_messages:]
 
         return messages
 
