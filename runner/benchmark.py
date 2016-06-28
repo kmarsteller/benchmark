@@ -492,7 +492,8 @@ class BenchmarkDatabase(object):
                 try:
                     spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
                     self.cursor.execute("INSERT INTO BenchmarkData VALUES(?, ?, ?, ?, ?, ?, ?, ?)",
-                        (row[0], spec, row[2], float(row[3]), float(row[4]), float(row[5]), float(row[6]), float(row[7])))
+                                        (row[0], spec, row[2], float(row[3]), float(row[4]),
+                                         float(row[5]), float(row[6]), float(row[7])))
                     data_added = True
                 except IndexError:
                     print("Invalid benchmark data found in results:\n %s" % str(row))
@@ -583,21 +584,7 @@ class BenchmarkDatabase(object):
                     % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
                 mem_messages.append(msg)
 
-        # group messages into sets of max_messages
-        cpu_msg_groups = []
-        mem_msg_groups = []
-        max_messages = 10
-
-        while cpu_messages:
-            print()
-            cpu_msg_groups.append('\n'.join(cpu_messages[:max_messages]))
-            cpu_messages = cpu_messages[max_messages:]
-
-        while mem_messages:
-            mem_msg_groups.append('\n'.join(mem_messages[:max_messages]))
-            mem_messages = mem_messages[max_messages:]
-
-        return cpu_msg_groups, mem_msg_groups
+        return cpu_messages, mem_messages
 
     def get_data_for_timestamp(self, timestamp):
         """
@@ -780,13 +767,13 @@ class BenchmarkDatabase(object):
                 for spec in plot_specs:
                     data = self.get_data_for_spec(spec)
 
-                    # only plot data for othe last 30 benchmark runs
+                    # only plot data for the last num_runs benchmark runs
                     num_runs = 20
 
-                    timestamps = [datetime.fromtimestamp(timestamp) for timestamp in data['timestamp'][-num_runs:]]
-                    timestamp  = dates.date2num(timestamps)
-                    elapsed    = np.array(data['elapsed'][-num_runs:])
-                    memory     = np.array(data['memory'][-num_runs:])
+                    datetimes = [datetime.fromtimestamp(t) for t in data['timestamp'][-num_runs:]]
+                    timestamp = dates.date2num(datetimes)
+                    elapsed   = np.array(data['elapsed'][-num_runs:])
+                    memory    = np.array(data['memory'][-num_runs:])
 
                     max_elapsed = max(max_elapsed, np.max(elapsed))
                     max_memory  = max(max_memory, np.max(memory))
@@ -799,26 +786,26 @@ class BenchmarkDatabase(object):
                     pyplot.plot_date(timestamp, memory, '.-', label=spec)
                     pyplot.ylabel('memory usage')
 
-                    # format the ticks
-                    a1.set_xticks([])
-                    a2.xaxis.set_minor_locator(mondays)
-                    a2.xaxis.set_major_formatter(weekFmt)
-                    for tick in a2.xaxis.get_major_ticks():
-                        # specify integer or one of preset strings, e.g.
-                        # tick.label.set_fontsize(10)
-                        tick.label.set_fontsize('x-small')
-                    pyplot.xticks(rotation=45)
+                # format the ticks
+                a1.set_xticks([])
+                a2.xaxis.set_minor_locator(mondays)
+                a2.xaxis.set_major_formatter(weekFmt)
+                for tick in a2.xaxis.get_major_ticks():
+                    tick.label.set_fontsize('x-small')
+                pyplot.xticks(rotation=45)
 
-                    a1.set_ylim(0, max_elapsed*1.15)
-                    a2.set_ylim(0, max_memory*1.15)
+                a1.set_ylim(0, max_elapsed*1.15)
+                a2.set_ylim(0, max_memory*1.15)
 
-                    pyplot.legend(plot_specs, loc=9, prop={'size': 8}, bbox_to_anchor=(0.5, -0.3))
+                pyplot.legend(plot_specs, loc=9, prop={'size': 8}, bbox_to_anchor=(0.5, -0.3))
 
                 if show:
                     pyplot.show()
 
                 if save:
-                    filename = self.name + str(plot_no) + ".png"
+                    # unique filename for every hour, recycled every day (24hr cache on Slack?)
+                    from time import localtime, strftime
+                    filename = self.name + strftime("_%H_", localtime()) + str(plot_no) + ".png"
                     pyplot.savefig(filename)
                     code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
                     filenames.append(filename)
@@ -990,16 +977,26 @@ class BenchmarkRunner(object):
                         for plot_file in summary_plots:
                             self.slack.post_image("", "/".join([image_url, plot_file]))
 
-                        # post message for any benchmarks that showed significant change
+                        # check benchmarks for significant changes & post any resulting messages
                         cpu_messages, mem_messages = db.check_benchmarks()
+                        notify = "<!channel> The following %s benchmarks had a significant change in %s:\n"
+
+                        # post max_messages at a time
+                        max_messages = 9
+
                         if cpu_messages:
-                            self.slack.post_message("<!channel> The following %s benchmarks had a significant change in elapsed time:\n" % project["name"])
-                            for msg in cpu_messages:
+                            self.slack.post_message(notify % (project["name"], "elapsed time"))
+                            while cpu_messages:
+                                msg = '\n'.join(cpu_messages[:max_messages])
                                 self.slack.post_message(msg)
+                                cpu_messages = cpu_messages[max_messages:]
+
                         if mem_messages:
-                            self.slack.post_message("<!channel> The following %s benchmarks had a significant change in memory usage:\n" % project["name"])
-                            for msg in mem_messages:
+                            self.slack.post_message(notify % (project["name"], "memory usage"))
+                            while mem_messages:
+                                msg = '\n'.join(mem_messages[:max_messages])
                                 self.slack.post_message(msg)
+                                mem_messages = mem_messages[max_messages:]
 
                     if conf["remove_csv"]:
                         os.remove(csv_file)
