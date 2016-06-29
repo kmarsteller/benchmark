@@ -565,13 +565,16 @@ class BenchmarkDatabase(object):
             time_delta   = curr_elapsed - prev_elapsed
             mem_delta    = curr_memory  - prev_memory
 
-            url = conf["url"]+self.name+'/'+curr_spec
+            if "url" in conf:
+                link = "<%s|%s>" % (conf["url"]+self.name+'/'+curr_spec, curr_spec.split(".")[-1])
+            else:
+                link = curr_spec.split(".")[-1]
 
             pct_change = 100.*time_delta/prev_elapsed
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "<%s|%s> %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
-                    % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change),
+                msg = "%s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
+                    % (link, inc_or_dec, abs(pct_change),
                        curr_elapsed, curr_load1, curr_load5, curr_load15,
                        prev_elapsed, prev_load1, prev_load5, prev_load15)
                 cpu_messages.append(msg)
@@ -580,7 +583,7 @@ class BenchmarkDatabase(object):
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
                 msg = "<%s|%s> %s by %4.1f%% (%5.2f  vs. %5.2f)" \
-                    % (url, curr_spec.split(".")[-1], inc_or_dec, abs(pct_change), curr_memory, prev_memory)
+                    % (link, inc_or_dec, abs(pct_change), curr_memory, prev_memory)
                 mem_messages.append(msg)
 
         # group messages into sets of max_messages
@@ -1039,7 +1042,11 @@ class BenchmarkRunner(object):
         """
         list specific commits (in link form)that caused this bench run
         """
-        pretext = "*%s* benchmarks (<%s|link>) triggered by " % (name, conf["url"]+name)
+        if "url" in conf:
+            link = " (<%s|link>) " % conf["url"]+name
+        else:
+            link = " "
+        pretext = "*%s* benchmarks%striggered by " % (name, link)
 
         if triggered_by == ["force"]:
             pretext = pretext + "force:\n"
