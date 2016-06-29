@@ -1040,7 +1040,7 @@ class BenchmarkRunner(object):
         list specific commits (in link form)that caused this bench run
         """
         if "url" in conf:
-            link = " (<%s|link>) " % conf["url"]+name
+            link = " (<%s|link>) " % (conf["url"]+name)
         else:
             link = " "
         pretext = "*%s* benchmarks%striggered by " % (name, link)
