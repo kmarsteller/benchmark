@@ -43,12 +43,17 @@ $(document).ready(function() {
         <td align="center">{{items['LoadAvg5m'][i]}}</td>
         <td align="center">{{items['LoadAvg15m'][i]}}</td>
         <td align="center">
-          {% for name, url in items['commits'][i] %}
-              <a  title="{{url.rsplit('/', 1)[1][0:7]}}" href="{{url}}">{{name}}</a>
-          {% end %}
+        {% for (name, commit), (pname, pcommit) in zip(items['commits'][items['timestamp'][i]], items['commits'][items['timestamp'][i-1]])  %}
+            {% if pcommit != commit %}
+              <a style="color:red" href="http://github.com/OpenMDAO/{{name}}/compare/{{pcommit}}...{{commit}}">{{name}}</a>
+            {% elif pcommit == commit %}
+              <a style="color:blue" href="http://github.com/OpenMDAO/{{name}}/commit/{{commit}}">{{name}}</a>
+            {% end %}
+
+        {% end %}
         </td>
       </tr>
-    {% end %}
+     {% end %}
   </table>
 </body>
 </html>
