@@ -15,9 +15,6 @@ import csv
 import math
 
 from datetime import datetime
-# from pprint import pprint
-
-import numpy as np
 
 import logging
 logging.basicConfig(level=logging.DEBUG)
@@ -658,6 +655,8 @@ class BenchmarkDatabase(object):
         """
         generate a history plot for a benchmark
         """
+        import numpy as np
+
         logging.info('plot: %s', spec)
         print('plot: %s' % spec)
 
@@ -721,6 +720,8 @@ class BenchmarkDatabase(object):
         """
         generate a history plot for this projects benchmarks
         """
+        import numpy as np
+
         logging.info('plot: %s', self.name)
         filenames = []
 

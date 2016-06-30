@@ -11,21 +11,21 @@ database_dir = os.path.abspath(os.path.dirname(__file__))
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        print "==> MainHandler:", self.request.uri
+        print ("==> MainHandler:", self.request.uri)
         dbs = []
         for file in os.listdir(database_dir):
           if file.endswith(".db"):
-            print "    "+file
+            print ("    "+file)
             dbs.append(file.lsplit(".")[0])
         self.render("main_template.html", dbs=dbs)
 
 
 class ProjectHandler(tornado.web.RequestHandler):
     def get(self, project):
-        print "==> ProjectHandler:", project
-        print os.path.join(database_dir, project)
+        print ("==> ProjectHandler:", project)
+        print (os.path.join(database_dir, project))
         if (project+".db") not in os.listdir(database_dir):
-            print "      PROJECT " + project + " DOES NOT EXIST."
+            print ("      PROJECT " + project + " DOES NOT EXIST.")
             return
         db = BenchmarkDatabase(os.path.join(database_dir, project))
         specs = db.get_specs()
@@ -42,8 +42,8 @@ class ProjectHandler(tornado.web.RequestHandler):
 
 class SpecHandler(tornado.web.RequestHandler):
     def get(self, project, spec):
-        print "==> SpecHandler:", project, spec
-        print os.path.join(database_dir, project)
+        print ("==> SpecHandler:", project, spec)
+        print (os.path.join(database_dir, project))
         db = BenchmarkDatabase(os.path.join(database_dir, project))
 
         data = {}
@@ -61,13 +61,15 @@ class SpecHandler(tornado.web.RequestHandler):
             tmp_list = []
             for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==? ORDER BY DateTime', (timestamp,)):
                 # row[0] is timestamp, row[1] is trigger, row[2] is commit
+                prefix = ""
                 name = row[1].rsplit('/', 1)[1]
-                #link = (row[1]+'/commit/'+row[2]).strip().replace(':', '/').replace('git@', 'http://')
+                if "github" in row[1]:
+                    prefix = row[1].strip().replace(':', '/').replace('git@', 'http://')
+                if "bitbucket" in row[1]:
+                    prefix = row[1]
                 commit = row[2]
-                tmp_list.append((name, commit))
+                tmp_list.append((name, commit, prefix))
             commits[timestamp] = tmp_list
-
-        #     # for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==(SELECT MIN(DateTime) FROM Commits WHERE DateTime < ?) ORDER BY DateTime', (timestamp,)):
 
         data['commits'] = commits
 

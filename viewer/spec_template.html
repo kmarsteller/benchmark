@@ -43,11 +43,19 @@ $(document).ready(function() {
         <td align="center">{{items['LoadAvg5m'][i]}}</td>
         <td align="center">{{items['LoadAvg15m'][i]}}</td>
         <td align="center">
-        {% for (name, commit), (pname, pcommit) in zip(items['commits'][items['timestamp'][i]], items['commits'][items['timestamp'][i-1]])  %}
-            {% if pcommit != commit %}
-              <a style="color:red" href="http://github.com/OpenMDAO/{{name}}/compare/{{pcommit}}...{{commit}}">{{name}}</a>
-            {% elif pcommit == commit %}
-              <a style="color:blue" href="http://github.com/OpenMDAO/{{name}}/commit/{{commit}}">{{name}}</a>
+        {% for (name, commit, prefix), (pname, pcommit, pprefix) in zip(items['commits'][items['timestamp'][i]], items['commits'][items['timestamp'][i-1]])  %}
+            {% if pcommit != commit and i > 0 %}
+                {% if "github" in prefix %}
+                    <a style="color:red" href="{{prefix}}/compare/{{pcommit}}...{{commit}}">{{name}}</a>
+                {% elif "bitbucket" in prefix %}
+                    <a style="color:red" href="{{prefix}}/compare/{{commit}}%0D{{pcommit}}#diff">{{name}}</a>
+                {% end %}
+            {% else %}
+                {% if "github" in prefix %}
+                    <a style="color:blue" href="{{prefix}}/commit/{{commit}}">{{name}}</a>
+                {% elif "bitbucket" in prefix %}
+                    <a style="color:blue" href="{{prefix}}/commits/{{commit}}">{{name}}</a>
+                {% end %}
             {% end %}
 
         {% end %}
