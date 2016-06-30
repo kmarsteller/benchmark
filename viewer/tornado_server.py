@@ -5,27 +5,27 @@ import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
 
-database_dir = os.path.abspath(os.path.dirname(__file__))
-#database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+#database_dir = os.path.abspath(os.path.dirname(__file__))
+database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        print "==> MainHandler:", self.request.uri
+        print ("==> MainHandler:", self.request.uri)
         dbs = []
         for file in os.listdir(database_dir):
           if file.endswith(".db"):
-            print "    "+file
+            print ("    "+file)
             dbs.append(file.lsplit(".")[0])
         self.render("main_template.html", dbs=dbs)
 
 
 class ProjectHandler(tornado.web.RequestHandler):
     def get(self, project):
-        print "==> ProjectHandler:", project
-        print os.path.join(database_dir, project)
+        print ("==> ProjectHandler:", project)
+        print (os.path.join(database_dir, project))
         if (project+".db") not in os.listdir(database_dir):
-            print "      PROJECT " + project + " DOES NOT EXIST."
+            print ("      PROJECT " + project + " DOES NOT EXIST.")
             return
         db = BenchmarkDatabase(os.path.join(database_dir, project))
         specs = db.get_specs()
@@ -42,8 +42,8 @@ class ProjectHandler(tornado.web.RequestHandler):
 
 class SpecHandler(tornado.web.RequestHandler):
     def get(self, project, spec):
-        print "==> SpecHandler:", project, spec
-        print os.path.join(database_dir, project)
+        print ("==> SpecHandler:", project, spec)
+        print (os.path.join(database_dir, project))
         db = BenchmarkDatabase(os.path.join(database_dir, project))
 
         data = {}

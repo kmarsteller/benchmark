@@ -44,9 +44,9 @@ $(document).ready(function() {
         <td align="center">{{items['LoadAvg15m'][i]}}</td>
         <td align="center">
         {% for (name, commit), (pname, pcommit) in zip(items['commits'][items['timestamp'][i]], items['commits'][items['timestamp'][i-1]])  %}
-            {% if pcommit != commit %}
+            {% if pcommit != commit and i > 0 %}
               <a style="color:red" href="http://github.com/OpenMDAO/{{name}}/compare/{{pcommit}}...{{commit}}">{{name}}</a>
-            {% elif pcommit == commit %}
+            {% else %}
               <a style="color:blue" href="http://github.com/OpenMDAO/{{name}}/commit/{{commit}}">{{name}}</a>
             {% end %}
 
