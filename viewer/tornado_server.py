@@ -5,8 +5,8 @@ import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
 
-#database_dir = os.path.abspath(os.path.dirname(__file__))
-database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+database_dir = os.path.abspath(os.path.dirname(__file__))
+#database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
 class MainHandler(tornado.web.RequestHandler):
@@ -61,13 +61,15 @@ class SpecHandler(tornado.web.RequestHandler):
             tmp_list = []
             for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==? ORDER BY DateTime', (timestamp,)):
                 # row[0] is timestamp, row[1] is trigger, row[2] is commit
+                prefix = ""
                 name = row[1].rsplit('/', 1)[1]
-                #link = (row[1]+'/commit/'+row[2]).strip().replace(':', '/').replace('git@', 'http://')
+                if "github" in row[1]:
+                    prefix = row[1].strip().replace(':', '/').replace('git@', 'http://')
+                if "bitbucket" in row[1]:
+                    prefix = row[1]
                 commit = row[2]
-                tmp_list.append((name, commit))
+                tmp_list.append((name, commit, prefix))
             commits[timestamp] = tmp_list
-
-        #     # for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==(SELECT MIN(DateTime) FROM Commits WHERE DateTime < ?) ORDER BY DateTime', (timestamp,)):
 
         data['commits'] = commits
 
