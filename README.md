@@ -54,7 +54,7 @@ An example `[project].json` file:
 ------------------------------------------
 `--plot`, `-p`: To plot a specific spec from the database, after benchmarking has been run, use `python benchmark.py [project] --plot [spec]`
 
-`--keep-env`, `-k`:	To keep your temporary conda environment around after benchmarking, usually for troubleshooting purposes.   *Note:* when your run ends, the env will be kept, but you'll be returned back to whatever env you started the run in. To inspect the kept env, do a `conda env list` and `source activate [envname]`
+`--keep-env`, `-k`:  To keep your temporary conda environment around after benchmarking, usually for troubleshooting purposes.   *Note:* when your run ends, the env will be kept, but you'll be returned back to whatever env you started the run in. To inspect the kept env, do a `conda env list` and `source activate [envname]`
 
 `--force`, `-f`: To force a run of the benchmarks even if no trigger repos have been changed, simply add `--force` to the command. This is usually used for testing, or if something went wrong with a previous run and you want the benchmarks to run again.
 
@@ -82,13 +82,15 @@ JSON file currently used to  specify fields such as:
 `logs_dir`:  where to keep the logs for all of the projects being benchmarked.  Defaults to `working_dir/logs`
 
 `remove_csv`:  remove benchmark data file after adding to database. Default: `False`.
- 
+
 `plot_history`: generate a plot showing history of each benchmark. Default: `True`.
 
 `ca`:  CA cert information needed by curl, with two sub-data:
 
-	`cacert`:  Defaults to "/etc/ssl/certs/ca-certificates.crt"
+  `cacert`:  Defaults to "/etc/ssl/certs/ca-certificates.crt"
     `capath`:  Defaults to "/etc/ssl/certs"
+
+`url`:  the base URL for linking to a benchmark website/URL handler running tornado_server.py
 
 An example `benchmark.cfg`:
 ```
@@ -110,8 +112,10 @@ An example `benchmark.cfg`:
     },
 
     "data": {
-    	"upload": "user@server.domain.com:directory"
+      "upload": "user@server.domain.com:directory"
     }
+
+    "url" : "http://domain.com/benchmark/"
 }
 ```
 
@@ -122,5 +126,3 @@ It's suggested that if you want to run `benchmark` on a regular basis to keep tr
 **COMPATIBILITY NOTE**
 ----------------------
 Given some of the underlying tools used to make benchmark work, it will likely only work with Linux and MacOSX.
-
-

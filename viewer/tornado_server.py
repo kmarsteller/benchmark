@@ -5,26 +5,45 @@ import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
 
-#database_dir = os.path.abspath(os.path.dirname(__file__))
-database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+database_dir = os.path.abspath(os.path.dirname(__file__))
+#database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
 class MainHandler(tornado.web.RequestHandler):
     def get(self):
-        print "==> MainHandler:", self.request.uri
-        self.write(self.request.uri)
+        print ("==> MainHandler:", self.request.uri)
+        dbs = []
+        for file in os.listdir(database_dir):
+          if file.endswith(".db"):
+            print ("    "+file)
+            dbs.append(file.lsplit(".")[0])
+        self.render("main_template.html", dbs=dbs)
 
 
 class ProjectHandler(tornado.web.RequestHandler):
     def get(self, project):
-        print "==> ProjectHandler:", project
-        self.write("Project: "+project)
+        print ("==> ProjectHandler:", project)
+        print (os.path.join(database_dir, project))
+        if (project+".db") not in os.listdir(database_dir):
+            print ("      PROJECT " + project + " DOES NOT EXIST.")
+            return
+        db = BenchmarkDatabase(os.path.join(database_dir, project))
+        specs = db.get_specs()
+        dates = []
+        for spec in specs:
+            for row in db.cursor.execute('SELECT DateTime FROM BenchmarkData WHERE Spec==? ORDER BY DateTime DESC LIMIT 1', (spec,)):
+                dates.append(row[0])
+
+        def date(timestamp):
+            return str(datetime.fromtimestamp(timestamp))
+
+        self.render("proj_template.html", title=project, spec=specs, date=date, dates=dates)
 
 
 class SpecHandler(tornado.web.RequestHandler):
     def get(self, project, spec):
-        print "==> SpecHandler:", project, spec
-        print os.path.join(database_dir, project)
+        print ("==> SpecHandler:", project, spec)
+        print (os.path.join(database_dir, project))
         db = BenchmarkDatabase(os.path.join(database_dir, project))
 
         data = {}
@@ -37,25 +56,26 @@ class SpecHandler(tornado.web.RequestHandler):
             data.setdefault("LoadAvg5m", []).append(row[6])
             data.setdefault("LoadAvg15m", []).append(row[7])
 
-        commits = []
-
-        for timestamp in data['timestamp']:
+        commits = {}
+        for timestamp in data["timestamp"]:
             tmp_list = []
             for row in db.cursor.execute('SELECT * FROM Commits WHERE DateTime==? ORDER BY DateTime', (timestamp,)):
                 # row[0] is timestamp, row[1] is trigger, row[2] is commit
+                prefix = ""
                 name = row[1].rsplit('/', 1)[1]
-                link = (row[1]+'/commit/'+row[2]).strip().replace(':', '/').replace('git@', 'http://')
-                tmp_list.append((name, link))
-            commits.append(tmp_list)
+                if "github" in row[1]:
+                    prefix = row[1].strip().replace(':', '/').replace('git@', 'http://')
+                if "bitbucket" in row[1]:
+                    prefix = row[1]
+                commit = row[2]
+                tmp_list.append((name, commit, prefix))
+            commits[timestamp] = tmp_list
 
         data['commits'] = commits
 
         from pprint import pprint
         pprint(data['timestamp'])
         pprint(data['commits'])
-
-        # NOTE: this dictionary is probably not the best data structure to use here
-        #       (depending on the ultimate means of rendering it to HTML)
 
         if not data:
             print("No data to plot for %s" % spec)
@@ -66,7 +86,7 @@ class SpecHandler(tornado.web.RequestHandler):
             def date(timestamp):
                 return str(datetime.fromtimestamp(timestamp))
 
-            self.render("template.html", title=bench_title, items=data, date=date)
+            self.render("spec_template.html", title=bench_title, items=data, date=date)
 
 
 def make_app():
@@ -74,7 +94,6 @@ def make_app():
         (r"/(.*)/(.*)", SpecHandler),
         (r"/(.*)",      ProjectHandler),
         (r"/",          MainHandler),
-        (r"/*.js", tornado.web.StaticFileHandler, dict(path='.'))
     ], debug=True)
 
 if __name__ == "__main__":
