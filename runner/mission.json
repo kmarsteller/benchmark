@@ -1,6 +1,5 @@
 {
-    "repository": "git@github.com:swryan/mission-allocation",
-    "branch":     "work",
+    "repository": "git@github.com:OpenMDAO/mission-allocation",
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
