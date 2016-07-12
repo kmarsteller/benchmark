@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import print_function
+from __future__ import print_function, division
 
 import traceback
 
@@ -651,7 +651,7 @@ class BenchmarkDatabase(object):
             specs.append(row[0])
         return specs
 
-    def plot_benchmark_data(self, spec=None, show=True, save=False):
+    def plot_benchmark_data(self, spec=None, show=False, save=False):
         """
         generate a history plot for a benchmark
         """
@@ -716,7 +716,7 @@ class BenchmarkDatabase(object):
 
         return filename
 
-    def plot_benchmarks(self, show=True, save=False):
+    def plot_benchmarks(self, show=False, save=False):
         """
         generate a history plot for this projects benchmarks
         """
@@ -730,43 +730,41 @@ class BenchmarkDatabase(object):
             matplotlib.use('Agg')
             from matplotlib import pyplot, dates
 
-            colormap = pyplot.cm.gist_ncar
+            color_map = pyplot.get_cmap('rainbow')
 
-            mondays = dates.WeekdayLocator(dates.MONDAY)        # major ticks on the mondays
-            weekFmt = dates.DateFormatter('%b %d')  # e.g., Jan 12
+            mondays = dates.WeekdayLocator(dates.MONDAY)    # major ticks on the mondays
+            weekFmt = dates.DateFormatter('%b %d')          # e.g., Jan 12
 
             self._ensure_benchmark_data()
 
+            # select only the specs that have more than one data point
             specs = self.get_specs()
 
-            # initialize max values to set y limit
-            # max_elapsed = 0
-            # max_memory = 0
-
-            # select only the specs that have more than one data point
             select_specs = []
             for spec in specs:
                 data = self.get_data_for_spec(spec)
                 if data and len(data['elapsed']) > 1:
                     select_specs.append(spec)
-                    # max_elapsed = max(max_elapsed, max(data['elapsed']))
-                    # max_memory  = max(max_memory, max(data['memory']))
 
             specs = select_specs
 
-            plot_count = int(math.ceil(len(specs)/10.))
+            specs_per_plot = 10
+
+            plot_count = int(math.ceil(len(specs)/specs_per_plot))
+
             for plot_no in range(plot_count):
                 pyplot.figure()
 
-                # select up to 10 specs to plot
-                plot_specs = specs[:10]
-                specs = specs[10:]
+                # select up to 'specs_per_plot' specs to plot
+                plot_specs = specs[:specs_per_plot]
+                specs = specs[specs_per_plot:]
 
-                pyplot.gca().set_color_cycle([colormap(i) for i in np.linspace(0, 0.9, len(plot_specs))])
-
-                # initialize max values to set y limit
+                # initialize max values to normalize data
                 max_elapsed = 0
                 max_memory = 0
+
+                num_specs = len(plot_specs)
+                color_cycle = iter([color_map(1.*i/num_specs) for i in range(num_specs)])
 
                 for spec in plot_specs:
                     data = self.get_data_for_spec(spec)
@@ -782,12 +780,14 @@ class BenchmarkDatabase(object):
                     max_elapsed = max(max_elapsed, np.max(elapsed))
                     max_memory  = max(max_memory, np.max(memory))
 
+                    color = next(color_cycle)
+
                     a1 = pyplot.subplot(3, 1, 1)
-                    pyplot.plot_date(timestamp, elapsed, '.-', label=spec)
+                    pyplot.plot_date(timestamp, elapsed/max_elapsed, '.-', color=color, label=spec)
                     pyplot.ylabel('elapsed time')
 
                     a2 = pyplot.subplot(3, 1, 2)
-                    pyplot.plot_date(timestamp, memory, '.-', label=spec)
+                    pyplot.plot_date(timestamp, memory/max_memory, '.-', color=color, label=spec)
                     pyplot.ylabel('memory usage')
 
                 # format the ticks
@@ -798,8 +798,8 @@ class BenchmarkDatabase(object):
                     tick.label.set_fontsize('x-small')
                 pyplot.xticks(rotation=45)
 
-                a1.set_ylim(0, max_elapsed*1.15)
-                a2.set_ylim(0, max_memory*1.15)
+                a1.set_ylim(-0.1, 1.1)
+                a2.set_ylim(-0.1, 1.1)
 
                 pyplot.legend(plot_specs, loc=9, prop={'size': 8}, bbox_to_anchor=(0.5, -0.3))
 
@@ -1198,7 +1198,7 @@ def main(args=None):
             if options.plot:
                 db = BenchmarkDatabase(project_name)
                 if options.plot == 'all':
-                    db.plot_benchmarks()
+                    db.plot_benchmarks(show=True)
                 else:
                     db.plot_benchmark_data(options.plot)
             elif options.dump:
