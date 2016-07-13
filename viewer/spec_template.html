@@ -5,28 +5,53 @@
     <title>Benchmark Results</title>
     <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://www.datatables.net/rss.xml">
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
-    <script type="text/javascript" language="javascript" src="//code.jquery.com/jquery-1.12.3.js"> </script>
-    <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"> </script>
-    <script type="text/javascript" class="init">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/scroller/1.4.2/css/scroller.dataTables.min.css">
+    <script src="//code.jquery.com/jquery-1.12.3.js"></script>
+    <script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/scroller/1.4.2/js/dataTables.scroller.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script class="init">
+        $(document).ready(function() {
+            var datestr = JSON.parse("{{items['datestr']}}".replace(/&#39;/g, '"'));
 
-$(document).ready(function() {
-  $('#spec_handler').DataTable( {
-     "ordering": true,
-     "order": [[ 0, 'desc' ]]
-  })
-});
+            var data_cpu = { x: datestr, y: {{items["elapsed"]}}, name: "Elapsed Time", type: "scatter"};
+            var data_mem = { x: datestr, y: {{items["memory"]}},  name: "Memory Usage", type: "scatter", yaxis: "y2"};
+            var data = [data_cpu, data_mem];
+
+            var layout = {
+                yaxis:  {title: "Elapsed Time", rangemode: "tozero"},
+                yaxis2: {title: "Memory Usage", rangemode: "tozero", overlaying: "y", side: "right"}
+
+            };
+            Plotly.newPlot("plot", data, layout);
+
+            var table = $("#datatable").DataTable({
+                "ordering": true,
+                "order": [[ 0, "desc" ]],
+                "scrollY": 500,
+                "scrollCollapse": true,
+                "scroller": true
+            });
+
+            var plot = document.getElementById("plot");
+            plot.on("plotly_click", function(data) {
+                var datestr = data.points[0].x;
+                table.row(":contains("+datestr+")").scrollTo(true);
+            });
+        });
     </script>
 </head>
 
 <body>
   <h1 class="page_title">{{ title }}</h1>
-  <table id="spec_handler" class="display" cellspacing="0" width="100%">
+  <div id="plot" style="border:thin"></div>
+  <table id="datatable" class="display" cellspacing="0" width="100%">
     <thead>
       <tr>
         <th>Date</th>
         <th>Status</th>
         <th>Elapsed</th>
-        <th>Mem Use</th>
+        <th>Mem Usage</th>
         <th>LoadAvg1m</th>
         <th>LoadAvg5m</th>
         <th>LoadAvg15m</th>
@@ -35,7 +60,7 @@ $(document).ready(function() {
     </thead>
     {% for i in range(len(items['timestamp'])) %}
       <tr>
-        <td align="center">{{ date(items['timestamp'][i]) }}</td>
+        <td align="center">{{items['datestr'][i] }}</td>
         <td align="center">{{items['status'][i]}}</td>
         <td align="center">{{items['elapsed'][i]}}</td>
         <td align="center">{{items['memory'][i]}}</td>
