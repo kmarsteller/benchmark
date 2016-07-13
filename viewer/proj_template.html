@@ -4,16 +4,15 @@
   <title>Benchmark Results</title>
   <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://www.datatables.net/rss.xml">
   <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
-  <script type="text/javascript" language="javascript" src="//code.jquery.com/jquery-1.12.3.js"> </script>
-  <script type="text/javascript" language="javascript" src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"> </script>
-  <script type="text/javascript" class="init">
-
-$(document).ready(function() {
-$('#proj_handler').DataTable( {
-   "ordering": true,
-   "order": [[ 1, 'desc' ]]
-})
-});
+  <script src="//code.jquery.com/jquery-1.12.3.js"> </script>
+  <script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"> </script>
+  <script class="init">
+    $(document).ready(function() {
+      $('#proj_handler').DataTable( {
+         "ordering": true,
+         "order": [[ 1, 'desc' ]]
+      })
+    });
   </script>
 </head>
 
@@ -23,15 +22,15 @@ $('#proj_handler').DataTable( {
     <thead>
       <tr>
         <th>Benchmark</th>
-        <th>Date</th>
+        <th>Last Run Date</th>
       </tr>
     </thead>
-    {% for i in range(len(spec)) %}
+      {% for i in range(len(spec)) %}
         <tr>
-          <td><a  href="http://openmdao.org/benchmark/{{ title }}/{{spec[i]}}">{{spec[i]}}</a> </td>
-          <td>{{ date(dates[i]) }} </td>
+          <td><a href="{{ title }}/{{spec[i]}}">{{spec[i]}}</a></td>
+          <td>{{ date(dates[i]) }}</td>
         </tr>
-    {% end %}
+      {% end %}
   </table>
 </body>
 </html>
