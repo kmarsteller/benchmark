@@ -11,41 +11,38 @@ database_dir = os.path.abspath(os.path.dirname(__file__))
 #database_dir = "/home/openmdao/webapps/benchmark_data_server/"
 
 
-class MainHandler(tornado.web.RequestHandler):
-    def get(self):
-        print ("==> MainHandler:", self.request.uri)
-        dbs = []
-        for file in os.listdir(database_dir):
-            if file.endswith(".db"):
-                print ("    "+file)
-                dbs.append(file.lsplit(".")[0])
-        self.render("main_template.html", dbs=dbs)
-
-
 class ProjectHandler(tornado.web.RequestHandler):
     def get(self, project):
-        print ("==> ProjectHandler:", project)
-        print (os.path.join(database_dir, project))
-        if (project+".db") not in os.listdir(database_dir):
-            print ("      PROJECT " + project + " DOES NOT EXIST.")
-            return
-        db = BenchmarkDatabase(os.path.join(database_dir, project))
-        specs = db.get_specs()
-        dates = []
-        for spec in specs:
-            for row in db.cursor.execute('SELECT DateTime FROM BenchmarkData WHERE Spec==? ORDER BY DateTime DESC LIMIT 1', (spec,)):
-                dates.append(row[0])
+        """
+        Display benchmarks for project.
+        If no project is specified, show list of projects.
+        """
+        dbs = [f for f in os.listdir(database_dir) if f.endswith(".db")]
 
-        def date(timestamp):
-            return str(datetime.fromtimestamp(timestamp))
+        if not project:
+            dbs = [f.rsplit(".")[0] for f in dbs]
+            self.render("main_template.html", dbs=dbs)
+        elif (project+".db") not in dbs:
+            self.finish("<html><body>%s is not a valid project</body></html>" % project)
+        else:
+            db = BenchmarkDatabase(os.path.join(database_dir, project))
+            specs = db.get_specs()
+            dates = []
+            for spec in specs:
+                for row in db.cursor.execute('SELECT DateTime FROM BenchmarkData WHERE Spec==? ORDER BY DateTime DESC LIMIT 1', (spec,)):
+                    dates.append(row[0])
 
-        self.render("proj_template.html", title=project, spec=specs, date=date, dates=dates)
+            def date(timestamp):
+                return str(datetime.fromtimestamp(timestamp))
+
+            self.render("proj_template.html", title=project, spec=specs, date=date, dates=dates)
 
 
 class SpecHandler(tornado.web.RequestHandler):
     def get(self, project, spec):
-        print ("==> SpecHandler:", project, spec)
-        print (os.path.join(database_dir, project))
+        """
+        Display history for specific benchmark.
+        """
         db = BenchmarkDatabase(os.path.join(database_dir, project))
 
         data = {}
@@ -84,15 +81,12 @@ class SpecHandler(tornado.web.RequestHandler):
             self.render("spec_template.html", title=bench_title, items=data)
 
 
-def make_app():
-    return tornado.web.Application([
-        (r"/(.*)/(.*)", SpecHandler),
-        (r"/(.*)",      ProjectHandler),
-        (r"/",          MainHandler),
+if __name__ == "__main__":
+    app = tornado.web.Application([
+        (r'/(favicon.ico)', tornado.web.StaticFileHandler, {"path": ""}),
+        (r"/(.*)/(.*)",     SpecHandler),
+        (r"/(.*)",          ProjectHandler),
     ], debug=True)
 
-
-if __name__ == "__main__":
-    app = make_app()
     app.listen(18309)
     tornado.ioloop.IOLoop.current().start()
