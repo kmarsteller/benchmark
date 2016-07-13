@@ -1,9 +1,11 @@
+#!/usr/bin/env python
 import os
 from datetime import datetime
 
 import tornado.ioloop
 import tornado.web
 from benchmark import BenchmarkDatabase
+
 
 database_dir = os.path.abspath(os.path.dirname(__file__))
 #database_dir = "/home/openmdao/webapps/benchmark_data_server/"
@@ -14,9 +16,9 @@ class MainHandler(tornado.web.RequestHandler):
         print ("==> MainHandler:", self.request.uri)
         dbs = []
         for file in os.listdir(database_dir):
-          if file.endswith(".db"):
-            print ("    "+file)
-            dbs.append(file.lsplit(".")[0])
+            if file.endswith(".db"):
+                print ("    "+file)
+                dbs.append(file.lsplit(".")[0])
         self.render("main_template.html", dbs=dbs)
 
 
@@ -71,22 +73,15 @@ class SpecHandler(tornado.web.RequestHandler):
                 tmp_list.append((name, commit, prefix))
             commits[timestamp] = tmp_list
 
-        data['commits'] = commits
-
-        from pprint import pprint
-        pprint(data['timestamp'])
-        pprint(data['commits'])
+        data["commits"] = commits
+        data["datestr"] = ["{:%Y-%m-%d %H:%M}".format(datetime.fromtimestamp(t)) for t in data["timestamp"]]
 
         if not data:
             print("No data to plot for %s" % spec)
             return "No data for %s %s " % (project, spec)
         else:
             bench_title = "Benchmark Results for " + spec
-
-            def date(timestamp):
-                return str(datetime.fromtimestamp(timestamp))
-
-            self.render("spec_template.html", title=bench_title, items=data, date=date)
+            self.render("spec_template.html", title=bench_title, items=data)
 
 
 def make_app():
@@ -95,6 +90,7 @@ def make_app():
         (r"/(.*)",      ProjectHandler),
         (r"/",          MainHandler),
     ], debug=True)
+
 
 if __name__ == "__main__":
     app = make_app()
