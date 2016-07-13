@@ -5,8 +5,10 @@
     <title>Benchmark Results</title>
     <link rel="alternate" type="application/rss+xml" title="RSS 2.0" href="http://www.datatables.net/rss.xml">
     <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/1.10.12/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" type="text/css" href="https://cdn.datatables.net/scroller/1.4.2/css/scroller.dataTables.min.css">
     <script src="//code.jquery.com/jquery-1.12.3.js"></script>
     <script src="https://cdn.datatables.net/1.10.12/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/scroller/1.4.2/js/dataTables.scroller.min.js"></script>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script class="init">
         $(document).ready(function() {
@@ -25,14 +27,16 @@
 
             var table = $("#datatable").DataTable({
                 "ordering": true,
-                "order": [[ 0, "desc" ]]
-            })
+                "order": [[ 0, "desc" ]],
+                "scrollY": 500,
+                "scrollCollapse": true,
+                "scroller": true
+            });
 
             var plot = document.getElementById("plot");
             plot.on("plotly_click", function(data) {
-                dt = data.points[0].x;
-                table.search(dt);
-                table.draw();
+                var datestr = data.points[0].x;
+                table.row(":contains("+datestr+")").scrollTo(true);
             });
         });
     </script>
