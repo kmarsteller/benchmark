@@ -10,23 +10,30 @@
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <script class="init">
         $(document).ready(function() {
-            var datestr = JSON.parse("{{items['datestr']}}".replace(/&#39;/g, '"'))
+            var datestr = JSON.parse("{{items['datestr']}}".replace(/&#39;/g, '"'));
 
-            var data_cpu = { x: datestr, y: {{items['elapsed']}}, name: 'Elapsed Time', type: 'scatter'};
-            var data_mem = { x: datestr, y: {{items['memory']}},  name: 'Memory Usage', type: 'scatter', yaxis: 'y2'};
-            var data = [data_cpu, data_mem]
+            var data_cpu = { x: datestr, y: {{items["elapsed"]}}, name: "Elapsed Time", type: "scatter"};
+            var data_mem = { x: datestr, y: {{items["memory"]}},  name: "Memory Usage", type: "scatter", yaxis: "y2"};
+            var data = [data_cpu, data_mem];
 
             var layout = {
-                yaxis:  {title: 'Elapsed Time', rangemode: "tozero"},
-                yaxis2: {title: 'Memory Usage', rangemode: "tozero", overlaying: 'y', side: 'right'}
+                yaxis:  {title: "Elapsed Time", rangemode: "tozero"},
+                yaxis2: {title: "Memory Usage", rangemode: "tozero", overlaying: "y", side: "right"}
 
-            }
-            Plotly.newPlot('plot', data, layout);
+            };
+            Plotly.newPlot("plot", data, layout);
 
-            $('#datatable').DataTable({
+            var table = $("#datatable").DataTable({
                 "ordering": true,
-                "order": [[ 0, 'desc' ]]
+                "order": [[ 0, "desc" ]]
             })
+
+            var plot = document.getElementById("plot");
+            plot.on("plotly_click", function(data) {
+                dt = data.points[0].x;
+                table.search(dt);
+                table.draw();
+            });
         });
     </script>
 </head>
