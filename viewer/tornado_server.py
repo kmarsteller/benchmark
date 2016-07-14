@@ -4,11 +4,17 @@ from datetime import datetime
 
 import tornado.ioloop
 import tornado.web
-from benchmark import BenchmarkDatabase
+
+from benchmark import BenchmarkDatabase, read_json
 
 
-#database_dir = os.path.abspath(os.path.dirname(__file__))
-database_dir = "/home/openmdao/webapps/benchmark_data_server/"
+#
+# default configuration options
+#
+conf = {
+    "database_dir": os.path.abspath(os.path.dirname(__file__)),
+    "base_url": ""
+}
 
 
 class ProjectHandler(tornado.web.RequestHandler):
@@ -17,11 +23,12 @@ class ProjectHandler(tornado.web.RequestHandler):
         Display benchmarks for project.
         If no project is specified, show list of projects.
         """
+        database_dir = conf["database_dir"]
         dbs = [f for f in os.listdir(database_dir) if f.endswith(".db")]
 
         if not project:
-            dbs = [f.rsplit(".")[0] for f in dbs]
-            self.render("main_template.html", dbs=dbs)
+            projects = [filename.rsplit(".")[0] for filename in dbs]
+            self.render("main_template.html", projects=projects, base_url=conf["base_url"])
         elif (project+".db") not in dbs:
             self.finish("<html><body>%s is not a valid project</body></html>" % project)
         else:
@@ -43,6 +50,7 @@ class SpecHandler(tornado.web.RequestHandler):
         """
         Display history for specific benchmark.
         """
+        database_dir = conf["database_dir"]
         dbs = [f for f in os.listdir(database_dir) if f.endswith(".db")]
 
         if (project+".db") not in dbs:
@@ -87,6 +95,12 @@ class SpecHandler(tornado.web.RequestHandler):
 
 
 if __name__ == "__main__":
+    # read local configuration if available
+    try:
+        conf.update(read_json("benchmark.cfg"))
+    except IOError:
+        pass
+
     app = tornado.web.Application([
         (r'/(favicon.ico)', tornado.web.StaticFileHandler, {"path": ""}),
         (r"/(.*)/(.*)",     SpecHandler),
