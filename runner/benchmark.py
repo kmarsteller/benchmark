@@ -1041,10 +1041,9 @@ class BenchmarkRunner(object):
         list specific commits (in link form)that caused this bench run
         """
         if "url" in conf:
-            link = " (<%s|link>) " % (conf["url"]+name)
+            pretext = "<%s|%s> benchmarks triggered by " % (conf["url"]+name, name)
         else:
-            link = " "
-        pretext = "*%s* benchmarks%striggered by " % (name, link)
+            pretext = "*%s* benchmarks triggered by " % name
 
         if triggered_by == ["force"]:
             pretext = pretext + "force:\n"
