@@ -4,7 +4,11 @@
     "dependencies": [
         "python=2.7",
         "numpy",
-        "scipy"
+        "scipy",
+        "mpi4py",
+        "git+https://bitbucket.org/petsc/petsc@v3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.5",
+        "~/dev/pyoptsparse"
     ]
 }
 
