@@ -14,6 +14,8 @@ import json
 import csv
 import math
 
+from pprint import pprint
+
 from datetime import datetime
 
 import logging
@@ -64,6 +66,14 @@ def read_json(filename):
     """
     with open(filename) as json_file:
         return json.loads(json_file.read())
+
+
+def write_json(filename, data):
+    """
+    write JSON data to a file
+    """
+    with open(filename, 'w') as json_file:
+        json_file.write(json.dumps(data))
 
 
 def prepend_path(newdir, path):
@@ -916,36 +926,44 @@ class BenchmarkRunner(object):
                 # install project
                 get_exitcode_stdout_stderr("pip install -e .")
 
+                # start out assuming we have a good set of commits
+                good_commits = True
+
                 # run unit tests
                 if unit_tests:
-                    bad_commit = False
 
-                    # if unit testing fails, the commit will be recorded in fail_file
+                    # if unit testing fails, the current set of commits will be recorded in fail_file
                     fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
 
                     # if not a forced run, check if this commit has already failed unit testing
                     if 'force' not in triggered_by and os.path.exists(fail_file):
-                        with open(fail_file, "r") as f:
-                            failed_commit = f.read()
-                            print("failed commit:", failed_commit, "current_commit:", current_commits[project["repository"]])
-                            if current_commits[project["repository"]] == failed_commit:
-                                print("This commit has already failed unit testing.")
-                                logging.info("This commit has already failed unit testing.")
-                                bad_commit = True
-                            else:
-                                # the failed commit is no longer the current commit, delete fail_file
-                                os.remove(fail_file)
+                        good_commits = False
+                        failed_commits = read_json(fail_file)
+                        print("failed commits:")
+                        pprint(failed_commits)
+                        print("current_commits:")
+                        pprint(current_commits)
+                        for key in current_commits:
+                             if current_commits[key] != failed_commits[key]:
+                                 # there has been a new commit, delete fail_file
+                                 print("found new commit for", key)
+                                 os.remove(fail_file)
+                                 good_commits = True
+                                 break
 
-                    # only run the unit tests if it's not a bad commit
-                    if not bad_commit:
+                    # only run the unit tests if we have good set of commits
+                    if good_commits:
                         rc = self.run_unittests(project["name"], trigger_msg)
                         if rc and 'force' not in triggered_by:
-                            with open(fail_file, "w") as f:
-                                f.write(current_commits[project["repository"]])
-                            bad_commit = True
+                            write_json(fail_file, current_commits)
+                            good_commits = False
+                    else:
+                        print("This set of commits has already failed unit testing.")
+                        logging.info("This set of commits has already failed unit testing.")
 
                 # run benchmarks and add data to database
-                if not unit_tests or not bad_commit:
+                if good_commits:
+
                     # get list of installed dependencies
                     installed_deps = {}
                     rc, out, err = get_exitcode_stdout_stderr("pip list")
