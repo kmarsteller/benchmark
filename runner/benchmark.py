@@ -923,8 +923,8 @@ class BenchmarkRunner(object):
                     # if unit testing fails, the commit will be recorded in fail_file
                     fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
 
-                    # check if this commit has already failed unit testing
-                    if os.path.exists(fail_file):
+                    # if not a forced run, check if this commit has already failed unit testing
+                    if 'force' not in triggered_by and os.path.exists(fail_file):
                         with open(fail_file, "r") as f:
                             failed_commit = f.read()
                             print("failed commit:", failed_commit, "current_commit:", current_commits[project["repository"]])
@@ -939,7 +939,7 @@ class BenchmarkRunner(object):
                     # only run the unit tests if it's not a bad commit
                     if not bad_commit:
                         rc = self.run_unittests(project["name"], trigger_msg)
-                        if rc:
+                        if rc and 'force' not in triggered_by:
                             with open(fail_file, "w") as f:
                                 f.write(current_commits[project["repository"]])
                             bad_commit = True
