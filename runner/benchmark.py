@@ -240,7 +240,7 @@ def get_current_commit():
         code, out, err = get_exitcode_stdout_stderr(git_pull)
         code, out, err = get_exitcode_stdout_stderr(git_commit)
 
-    return out
+    return out  # .strip()   # TODO: strip the commit IDs in the database as well
 
 
 #
@@ -883,27 +883,29 @@ class BenchmarkRunner(object):
         # project repo or a trigger repo being updated or the `force` option
         if force:
             triggered_by.append('force')
-        else:
-            triggers = project.get("triggers", [])
-            triggers.append(project["repository"])
+            
+        triggers = project.get("triggers", [])
+        triggers.append(project["repository"])
 
-            for trigger in triggers:
-                # for the project repository, we may want a particular branch
-                if trigger is project["repository"]:
-                    branch = project.get("branch", None)
-                else:
-                    branch = None
-                # check each trigger for any update since last run
-                with repo(trigger, branch):
-                    print('checking trigger', trigger, branch if branch else '')
-                    current_commits[trigger] = get_current_commit()
-                    logging.info("Current CommitID: %s", current_commits[trigger])
-                    last_commit = str(db.get_last_commit(trigger))
-                    logging.info("Last CommitID: %s", last_commit)
-                    if (last_commit != current_commits[trigger]):
-                        logging.info("There has been an update to %s\n", trigger)
-                        print("There has been an update to %s" % trigger)
-                        triggered_by.append(trigger)
+        for trigger in triggers:
+            # for the project repository, we may want a particular branch
+            if trigger is project["repository"]:
+                branch = project.get("branch", None)
+            else:
+                branch = None
+            # check each trigger for any update since last run
+            with repo(trigger, branch):
+                print('checking trigger', trigger, branch if branch else '')
+                current_commits[trigger] = get_current_commit()
+                logging.info("Current CommitID: %s", current_commits[trigger])
+                print("Current CommitID:", current_commits[trigger])
+                last_commit = str(db.get_last_commit(trigger))
+                logging.info("Last CommitID: %s", last_commit)
+                print("Last CommitID:", last_commit)
+                if (last_commit != current_commits[trigger]):
+                    logging.info("There has been an update to %s\n", trigger)
+                    print("There has been an update to %s" % trigger)
+                    triggered_by.append(trigger)
 
         # if new benchmark run is needed:
         # - create and activate a clean env
@@ -920,114 +922,120 @@ class BenchmarkRunner(object):
             triggers = project.get("triggers", [])
             dependencies = project.get("dependencies", [])
 
-            activate_env(run_name, dependencies, triggers)
+            # start out assuming we have a good set of commits
+            good_commits = True
 
-            with repo(project["repository"], project.get("branch", None)):
-                # install project
-                get_exitcode_stdout_stderr("pip install -e .")
+            # if unit testing is enabled, then check that we have not already failed unit testing
+            if unit_tests:
 
-                # start out assuming we have a good set of commits
-                good_commits = True
+                # if unit testing fails, the current set of commits will be recorded in fail_file
+                fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
 
-                # run unit tests
-                if unit_tests:
+                if os.path.exists(fail_file):
+                    good_commits = False
+                    failed_commits = read_json(fail_file)
+                    print("failed commits:")
+                    pprint(failed_commits)
+                    print("current_commits:")
+                    pprint(current_commits)
+                    for key in current_commits:
+                         if current_commits[key] != failed_commits[key]:
+                             # there has been a new commit, set flag to r-run and delete fail_file
+                             print("found new commit for", key)
+                             print("old commit:", failed_commits[key])
+                             print("new commit:", current_commits[key])
+                             good_commits = True
+                             os.remove(fail_file)
+                             break
 
-                    # if unit testing fails, the current set of commits will be recorded in fail_file
-                    fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
+                if not good_commits:
+                    print("This set of commits has already failed unit testing.")
+                    logging.info("This set of commits has already failed unit testing.")
 
-                    # if not a forced run, check if this commit has already failed unit testing
-                    if 'force' not in triggered_by and os.path.exists(fail_file):
-                        good_commits = False
-                        failed_commits = read_json(fail_file)
-                        print("failed commits:")
-                        pprint(failed_commits)
-                        print("current_commits:")
-                        pprint(current_commits)
-                        for key in current_commits:
-                             if current_commits[key] != failed_commits[key]:
-                                 # there has been a new commit, delete fail_file
-                                 print("found new commit for", key)
-                                 os.remove(fail_file)
-                                 good_commits = True
-                                 break
+            if good_commits or 'force' in triggered_by:
 
-                    # only run the unit tests if we have good set of commits
-                    if good_commits:
+                # activate conda env
+                activate_env(run_name, dependencies, triggers)
+
+                with repo(project["repository"], project.get("branch", None)):
+
+                    # install project
+                    get_exitcode_stdout_stderr("pip install -e .")
+
+                    # run the unit tests if requested and record current_commits if it fails
+                    if unit_tests:
                         rc = self.run_unittests(project["name"], trigger_msg)
-                        if rc and 'force' not in triggered_by:
+                        if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
-                    else:
-                        print("This set of commits has already failed unit testing.")
-                        logging.info("This set of commits has already failed unit testing.")
 
-                # run benchmarks and add data to database
-                if good_commits:
+                    # if we still show good commits, run benchmarks and add data to database
+                    if good_commits:
 
-                    # get list of installed dependencies
-                    installed_deps = {}
-                    rc, out, err = get_exitcode_stdout_stderr("pip list")
-                    for line in out.split('\n'):
-                        name_ver = line.split(" ", 1)
-                        if len(name_ver) == 2:
-                            installed_deps[name_ver[0]] = name_ver[1]
+                        # get list of installed dependencies
+                        installed_deps = {}
+                        rc, out, err = get_exitcode_stdout_stderr("pip list")
+                        for line in out.split('\n'):
+                            name_ver = line.split(" ", 1)
+                            if len(name_ver) == 2:
+                                installed_deps[name_ver[0]] = name_ver[1]
 
-                    csv_file = run_name+".csv"
-                    self.run_benchmarks(csv_file)
-                    db.add_benchmark_data(current_commits, csv_file, installed_deps)
+                        csv_file = run_name+".csv"
+                        self.run_benchmarks(csv_file)
+                        db.add_benchmark_data(current_commits, csv_file, installed_deps)
 
-                    # generate plots if requested and upload if image location is provided
-                    image_url = None
-                    plots = []
-                    summary_plots = []
-                    images = conf.get("images")
-                    if conf["plot_history"]:
-                        # plots = db.plot_all()
-                        summary_plots = db.plot_benchmarks(save=True)
-                        if images and plots + summary_plots:
-                            rc = upload(plots + summary_plots, conf["images"]["upload"])
-                            if rc == 0:
-                                image_url = conf["images"]["url"]
+                        # generate plots if requested and upload if image location is provided
+                        image_url = None
+                        plots = []
+                        summary_plots = []
+                        images = conf.get("images")
+                        if conf["plot_history"]:
+                            # plots = db.plot_all()
+                            summary_plots = db.plot_benchmarks(save=True)
+                            if images and plots + summary_plots:
+                                rc = upload(plots + summary_plots, conf["images"]["upload"])
+                                if rc == 0:
+                                    image_url = conf["images"]["url"]
 
-                    # if slack info is provided, post message to slack and
-                    # notify if any benchmarks changed by more than 10%
-                    if self.slack:
-                        # self.post_results(project["name"], trigger_msg, csv_file, image_url)
+                        # if slack info is provided, post message to slack and
+                        # notify if any benchmarks changed by more than 10%
+                        if self.slack:
+                            # self.post_results(project["name"], trigger_msg, csv_file, image_url)
 
-                        # post message that benchmarks were run and summary plot(s)
-                        self.slack.post_message(trigger_msg)
-                        for plot_file in summary_plots:
-                            self.slack.post_image("", "/".join([image_url, plot_file]))
+                            # post message that benchmarks were run and summary plot(s)
+                            self.slack.post_message(trigger_msg)
+                            for plot_file in summary_plots:
+                                self.slack.post_image("", "/".join([image_url, plot_file]))
 
-                        # check benchmarks for significant changes & post any resulting messages
-                        cpu_messages, mem_messages = db.check_benchmarks()
-                        notify = "<!channel> The following %s benchmarks had a significant change in %s:\n"
+                            # check benchmarks for significant changes & post any resulting messages
+                            cpu_messages, mem_messages = db.check_benchmarks()
+                            notify = "<!channel> The following %s benchmarks had a significant change in %s:\n"
 
-                        # post max_messages at a time
-                        max_messages = 9
+                            # post max_messages at a time
+                            max_messages = 9
 
-                        if cpu_messages:
-                            self.slack.post_message(notify % (project["name"], "elapsed time"))
-                            while cpu_messages:
-                                msg = '\n'.join(cpu_messages[:max_messages])
-                                self.slack.post_message(msg)
-                                cpu_messages = cpu_messages[max_messages:]
+                            if cpu_messages:
+                                self.slack.post_message(notify % (project["name"], "elapsed time"))
+                                while cpu_messages:
+                                    msg = '\n'.join(cpu_messages[:max_messages])
+                                    self.slack.post_message(msg)
+                                    cpu_messages = cpu_messages[max_messages:]
 
-                        if mem_messages:
-                            self.slack.post_message(notify % (project["name"], "memory usage"))
-                            while mem_messages:
-                                msg = '\n'.join(mem_messages[:max_messages])
-                                self.slack.post_message(msg)
-                                mem_messages = mem_messages[max_messages:]
+                            if mem_messages:
+                                self.slack.post_message(notify % (project["name"], "memory usage"))
+                                while mem_messages:
+                                    msg = '\n'.join(mem_messages[:max_messages])
+                                    self.slack.post_message(msg)
+                                    mem_messages = mem_messages[max_messages:]
 
-                    if conf["remove_csv"]:
-                        os.remove(csv_file)
+                        if conf["remove_csv"]:
+                            os.remove(csv_file)
 
-            # back up and transfer database
-            db.backup()
+                        # back up and transfer database
+                        db.backup()
 
-            # clean up environment
-            remove_env(run_name, keep_env)
+                # clean up environment
+                remove_env(run_name, keep_env)
 
     def run_unittests(self, name, trigger_msg):
         testflo_cmd = "testflo -n 1 -vs"
@@ -1063,7 +1071,7 @@ class BenchmarkRunner(object):
         else:
             pretext = "*%s* benchmarks triggered by " % name
 
-        if triggered_by == ["force"]:
+        if "force" in triggered_by:
             pretext = pretext + "force:\n"
         else:
             links = []
