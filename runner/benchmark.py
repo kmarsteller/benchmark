@@ -883,27 +883,27 @@ class BenchmarkRunner(object):
         # project repo or a trigger repo being updated or the `force` option
         if force:
             triggered_by.append('force')
-        else:
-            triggers = project.get("triggers", [])
-            triggers.append(project["repository"])
+            
+        triggers = project.get("triggers", [])
+        triggers.append(project["repository"])
 
-            for trigger in triggers:
-                # for the project repository, we may want a particular branch
-                if trigger is project["repository"]:
-                    branch = project.get("branch", None)
-                else:
-                    branch = None
-                # check each trigger for any update since last run
-                with repo(trigger, branch):
-                    print('checking trigger', trigger, branch if branch else '')
-                    current_commits[trigger] = get_current_commit()
-                    logging.info("Current CommitID: %s", current_commits[trigger])
-                    last_commit = str(db.get_last_commit(trigger))
-                    logging.info("Last CommitID: %s", last_commit)
-                    if (last_commit != current_commits[trigger]):
-                        logging.info("There has been an update to %s\n", trigger)
-                        print("There has been an update to %s" % trigger)
-                        triggered_by.append(trigger)
+        for trigger in triggers:
+            # for the project repository, we may want a particular branch
+            if trigger is project["repository"]:
+                branch = project.get("branch", None)
+            else:
+                branch = None
+            # check each trigger for any update since last run
+            with repo(trigger, branch):
+                print('checking trigger', trigger, branch if branch else '')
+                current_commits[trigger] = get_current_commit()
+                logging.info("Current CommitID: %s", current_commits[trigger])
+                last_commit = str(db.get_last_commit(trigger))
+                logging.info("Last CommitID: %s", last_commit)
+                if (last_commit != current_commits[trigger]):
+                    logging.info("There has been an update to %s\n", trigger)
+                    print("There has been an update to %s" % trigger)
+                    triggered_by.append(trigger)
 
         # if new benchmark run is needed:
         # - create and activate a clean env
@@ -963,12 +963,12 @@ class BenchmarkRunner(object):
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
                         rc = self.run_unittests(project["name"], trigger_msg)
-                        if rc and 'force' not in triggered_by:
+                        if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
 
                     # if we still show good commits, run benchmarks and add data to database
-                    if good_commits or 'force' in triggered_by:
+                    if good_commits:
 
                         # get list of installed dependencies
                         installed_deps = {}
@@ -1069,7 +1069,7 @@ class BenchmarkRunner(object):
         else:
             pretext = "*%s* benchmarks triggered by " % name
 
-        if triggered_by == ["force"]:
+        if "force" in triggered_by:
             pretext = pretext + "force:\n"
         else:
             links = []
