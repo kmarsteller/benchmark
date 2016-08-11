@@ -240,7 +240,7 @@ def get_current_commit():
         code, out, err = get_exitcode_stdout_stderr(git_pull)
         code, out, err = get_exitcode_stdout_stderr(git_commit)
 
-    return out.strip()
+    return out  # .strip()   # TODO: strip the commit IDs in the database as well
 
 
 #
@@ -898,8 +898,10 @@ class BenchmarkRunner(object):
                 print('checking trigger', trigger, branch if branch else '')
                 current_commits[trigger] = get_current_commit()
                 logging.info("Current CommitID: %s", current_commits[trigger])
+                print("Current CommitID:", current_commits[trigger])
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s", last_commit)
+                print("Last CommitID:", last_commit)
                 if (last_commit != current_commits[trigger]):
                     logging.info("There has been an update to %s\n", trigger)
                     print("There has been an update to %s" % trigger)
