@@ -955,8 +955,9 @@ class BenchmarkRunner(object):
                 # activate conda env
                 activate_env(run_name, dependencies, triggers)
 
-                # install project
                 with repo(project["repository"], project.get("branch", None)):
+
+                    # install project
                     get_exitcode_stdout_stderr("pip install -e .")
 
                     # run the unit tests if requested and record current_commits if it fails
