@@ -301,7 +301,7 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/naylor-b/testflo")
+    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/OpenMDAO/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -931,9 +931,9 @@ class BenchmarkRunner(object):
                     for key in current_commits:
                         if current_commits[key] != failed_commits[key]:
                             # there has been a new commit, set flag to r-run and delete fail_file
-                            logging.info("found new commit for", key)
-                            logging.info("old commit:", failed_commits[key])
-                            logging.info("new commit:", current_commits[key])
+                            logging.info("found new commit for %s", key)
+                            logging.info("old commit: %s", failed_commits[key])
+                            logging.info("new commit %s:", current_commits[key])
                             good_commits = True
                             os.remove(fail_file)
                             break
