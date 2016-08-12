@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import print_function, division
+from __future__ import division
 
 import traceback
 
@@ -13,8 +13,6 @@ import time
 import json
 import csv
 import math
-
-from pprint import pprint
 
 from datetime import datetime
 
@@ -90,7 +88,6 @@ def get_exitcode_stdout_stderr(cmd):
     """
     Execute the external command and get its exitcode, stdout and stderr.
     """
-    print(cmd)
     logging.info("CMD => %s", cmd)
     args = shlex.split(cmd)
     proc = Popen(args, stdout=PIPE, stderr=PIPE, env=env)
@@ -101,7 +98,6 @@ def get_exitcode_stdout_stderr(cmd):
         logging.debug("STDOUT =>\n%s", out)
     if err:
         logging.debug("STDERR =>\n%s", err)
-        print(err)
     return rc, out, err
 
 
@@ -125,9 +121,9 @@ def upload(files, dest):
     return code
 
 
-def init_log(name):
+def init_logging():
     """
-    initialize logging file with given name
+    initialize logging to stdout with clean format
     """
     log = logging.getLogger()
 
@@ -135,7 +131,18 @@ def init_log(name):
     for hdlr in log.handlers:
         log.removeHandler(hdlr)
 
-    # set the new handler
+    # set stdout handler with clean format
+    ch = logging.StreamHandler(sys.stdout)
+    ch.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(message)s')
+    ch.setFormatter(formatter)
+    log.addHandler(ch)
+
+
+def init_log_file(name):
+    """
+    initialize logging file with given name
+    """
     logs_dir = os.path.expanduser(os.path.join(conf["logs_dir"]))
     if not os.path.exists(logs_dir):
         os.makedirs(logs_dir)
@@ -145,6 +152,7 @@ def init_log(name):
     format_str = '%(asctime)s %(name)s %(levelname)s: %(message)s'
     fh.formatter = logging.Formatter(format_str)
 
+    log = logging.getLogger()
     log.addHandler(fh)
 
 
@@ -189,7 +197,6 @@ def repo(repository, branch=None):
         clone_repo(repository, branch)
 
     logging.info('cd into repo %s', repo_name)
-    print('cd into repo %s' % repo_name)
     os.chdir(repo_name)
     try:
         yield
@@ -252,7 +259,7 @@ def activate_env(env_name, dependencies, local_repos):
     Create and activate a conda env, install dependencies and then
     any local repositories
     """
-    cmd = "conda create -y -n " + env_name
+    cmd = "conda create -y -q -n " + env_name
 
     # handle python and numpy/scipy dependencies
     for dep in dependencies:
@@ -291,10 +298,10 @@ def activate_env(env_name, dependencies, local_repos):
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # need to do a pip install with --prefix to get things installed into proper conda env
-    pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
+    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr( pipinstall + "git+https://github.com/naylor-b/testflo")
+    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/OpenMDAO/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -330,7 +337,7 @@ def remove_env(env_name, keep_env):
     logging.info("PATH NOW: %s", env["PATH"])
 
     if not keep_env:
-        conda_delete = "conda env remove -y --name " + env_name
+        conda_delete = "conda env remove -q -y --name " + env_name
         code, out, err = get_exitcode_stdout_stderr(conda_delete)
         return code
 
@@ -391,12 +398,11 @@ class Slack(object):
         u = self.cfg["message"]
         c = "--cacert %s --capath %s " % (self.ca["cacert"], self.ca["capath"])
 
-        cmd = "curl -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (p, u, c)
+        cmd = "curl -s -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (p, u, c)
 
         code, out, err = get_exitcode_stdout_stderr(cmd)
         if code:
             logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
-            print("Could not post msg to slack", code, out, err)
 
         return code
 
@@ -404,7 +410,7 @@ class Slack(object):
         """
         post a file to slack
         """
-        cmd = "curl "
+        cmd = "curl -s "
 
         cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
              % (filename, title, filename, self.cfg["channel"], self.cfg["token"])
@@ -415,7 +421,6 @@ class Slack(object):
         code, out, err = get_exitcode_stdout_stderr(cmd)
 
         if code:
-            print("Could not post file to slack", code, out, err)
             logging.warn("Could not post file to slack:\n%s\n%s", out, err)
 
         return code
@@ -503,7 +508,7 @@ class BenchmarkDatabase(object):
                                          float(row[5]), float(row[6]), float(row[7])))
                     data_added = True
                 except IndexError:
-                    print("Invalid benchmark data found in results:\n %s" % str(row))
+                    logging.warn("Invalid benchmark data found in results:\n %s", str(row))
 
         if data_added:
             timestamp = row[0]  # row[0] is the timestamp for this set of benchmark data
@@ -519,7 +524,7 @@ class BenchmarkDatabase(object):
         """
         self._ensure_benchmark_data()
 
-        print("Checking benchmarks for timestamp:", timestamp)
+        logging.info("Checking benchmarks for timestamp: %s", timestamp)
 
         if timestamp is None:
             for row in self.cursor.execute("SELECT * FROM BenchmarkData ORDER BY DateTime DESC LIMIT 1"):
@@ -528,7 +533,6 @@ class BenchmarkDatabase(object):
         if timestamp is None:
             msg = "No benchmark data found"
             logging.warn(msg)
-            print(msg)
             return []
 
         date_str = datetime.fromtimestamp(timestamp)
@@ -537,7 +541,6 @@ class BenchmarkDatabase(object):
         if not curr_data:
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            print(msg)
             return []
 
         prev_time = None
@@ -547,7 +550,6 @@ class BenchmarkDatabase(object):
         if not prev_time:
             msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            print(msg)
             return []
 
         prev_data = self.get_data_for_timestamp(prev_time)
@@ -668,7 +670,6 @@ class BenchmarkDatabase(object):
         import numpy as np
 
         logging.info('plot: %s', spec)
-        print('plot: %s' % spec)
 
         self._ensure_benchmark_data()
 
@@ -683,7 +684,6 @@ class BenchmarkDatabase(object):
 
             if not data:
                 logging.warn("No data to plot for %s", spec)
-                print("No data to plot for %s" % spec)
                 return
 
             timestamp = np.array(data['timestamp'])
@@ -721,8 +721,6 @@ class BenchmarkDatabase(object):
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
-            print("numpy and matplotlib are required to plot benchmark data.")
-            print(traceback.format_exc())
 
         return filename
 
@@ -826,8 +824,6 @@ class BenchmarkDatabase(object):
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
-            print("numpy and matplotlib are required to plot benchmark data.")
-            print(traceback.format_exc())
 
         return filenames
 
@@ -846,7 +842,8 @@ class BenchmarkDatabase(object):
             except KeyError:
                 pass  # remote backup not configured
             except:
-                print("ERROR attempting remote backup")
+                logging.error("ERROR attempting remote backup")
+                logging.error(traceback.format_exc())
 
 
 class BenchmarkRunner(object):
@@ -871,7 +868,7 @@ class BenchmarkRunner(object):
         # initialize log file
         timestr = time.strftime("%Y%m%d-%H%M%S")
         run_name = project["name"] + "_" + timestr
-        init_log(run_name)
+        init_log_file(run_name)
 
         # load the database
         db = BenchmarkDatabase(project["name"])
@@ -883,7 +880,7 @@ class BenchmarkRunner(object):
         # project repo or a trigger repo being updated or the `force` option
         if force:
             triggered_by.append('force')
-            
+
         triggers = project.get("triggers", [])
         triggers.append(project["repository"])
 
@@ -895,16 +892,14 @@ class BenchmarkRunner(object):
                 branch = None
             # check each trigger for any update since last run
             with repo(trigger, branch):
-                print('checking trigger', trigger, branch if branch else '')
+                msg = 'checking trigger ' + trigger + ' ' + branch if branch else ''
+                logging.info(msg)
                 current_commits[trigger] = get_current_commit()
                 logging.info("Current CommitID: %s", current_commits[trigger])
-                print("Current CommitID:", current_commits[trigger])
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s", last_commit)
-                print("Last CommitID:", last_commit)
                 if (last_commit != current_commits[trigger]):
                     logging.info("There has been an update to %s\n", trigger)
-                    print("There has been an update to %s" % trigger)
                     triggered_by.append(trigger)
 
         # if new benchmark run is needed:
@@ -916,7 +911,6 @@ class BenchmarkRunner(object):
         # - back up database
         if triggered_by:
             logging.info("Benchmark triggered by updates to: %s", str(triggered_by))
-            print("Benchmark triggered by updates to: %s" % str(triggered_by))
             trigger_msg = self.get_trigger_message(project["name"], triggered_by, current_commits)
 
             triggers = project.get("triggers", [])
@@ -934,22 +928,17 @@ class BenchmarkRunner(object):
                 if os.path.exists(fail_file):
                     good_commits = False
                     failed_commits = read_json(fail_file)
-                    print("failed commits:")
-                    pprint(failed_commits)
-                    print("current_commits:")
-                    pprint(current_commits)
                     for key in current_commits:
-                         if current_commits[key] != failed_commits[key]:
-                             # there has been a new commit, set flag to r-run and delete fail_file
-                             print("found new commit for", key)
-                             print("old commit:", failed_commits[key])
-                             print("new commit:", current_commits[key])
-                             good_commits = True
-                             os.remove(fail_file)
-                             break
+                        if current_commits[key] != failed_commits[key]:
+                            # there has been a new commit, set flag to r-run and delete fail_file
+                            logging.info("found new commit for %s", key)
+                            logging.info("old commit: %s", failed_commits[key])
+                            logging.info("new commit %s:", current_commits[key])
+                            good_commits = True
+                            os.remove(fail_file)
+                            break
 
                 if not good_commits:
-                    print("This set of commits has already failed unit testing.")
                     logging.info("This set of commits has already failed unit testing.")
 
             if good_commits or 'force' in triggered_by:
@@ -960,7 +949,7 @@ class BenchmarkRunner(object):
                 with repo(project["repository"], project.get("branch", None)):
 
                     # install project
-                    get_exitcode_stdout_stderr("pip install -e .")
+                    get_exitcode_stdout_stderr("pip install -q -e .")
 
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
@@ -1059,7 +1048,6 @@ class BenchmarkRunner(object):
         """
         testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
-        print(code, out, err)
         return code
 
     def get_trigger_message(self, name, triggered_by, current_commits):
@@ -1117,7 +1105,7 @@ class BenchmarkRunner(object):
                     if row[2] != "OK":
                         color = "danger"
                 except IndexError:
-                    print("Invalid benchmark specification found in results:\n %s" % str(row))
+                    logging.info("Invalid benchmark specification found in results:\n %s", str(row))
 
             msg_count = int(math.ceil(len(names)/10.))
             for m in range(msg_count):
@@ -1206,6 +1194,9 @@ def main(args=None):
     # prepend benchmark dir to PATH to intercept mpirun command
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
+    # initalize logging to stdout
+    init_logging()
+
     # perform the requested operation for each project
     with cd(conf["working_dir"]):
         for project in options.projects:
@@ -1233,7 +1224,7 @@ def main(args=None):
                 db = BenchmarkDatabase(project_name)
                 messages = db.check_benchmarks()
                 for msg in messages:
-                    print(msg)
+                    logging.info(msg)
             else:
                 # use a different repo directory for each project
                 conf["repo_dir"] = os.path.expanduser(
