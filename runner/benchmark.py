@@ -1020,8 +1020,9 @@ class BenchmarkRunner(object):
                         if conf["remove_csv"]:
                             os.remove(csv_file)
 
-                        # back up and transfer database
-                        db.backup()
+                if good_commits:
+                    # back up and transfer database
+                    db.backup()
 
                 # clean up environment
                 remove_env(run_name, keep_env)
