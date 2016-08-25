@@ -316,7 +316,9 @@ def activate_env(env_name, dependencies, local_repos):
     # triggers are installed from a local copy of the repo via 'setup.py install'
     for local_repo in local_repos:
         with repo(local_repo):
-            code, out, err = get_exitcode_stdout_stderr("python setup.py install")
+            code, out, err = get_exitcode_stdout_stderr("pip install -e .")
+            if (code != 0):
+                code, out, err = get_exitcode_stdout_stderr("python setup.py install")
             if (code != 0):
                 raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
 
