@@ -301,7 +301,7 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/OpenMDAO/testflo")
+    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/swryan/testflo@work")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -1050,6 +1050,8 @@ class BenchmarkRunner(object):
         Use testflo to run benchmarks)
         """
         testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
+        if "qsub" in conf and conf["qsub"]:
+             testflo_cmd += " --qsub"
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         return code
 
