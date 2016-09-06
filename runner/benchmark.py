@@ -535,7 +535,7 @@ class BenchmarkDatabase(object):
         if timestamp is None:
             msg = "No benchmark data found"
             logging.warn(msg)
-            return []
+            return [], []
 
         date_str = datetime.fromtimestamp(timestamp)
 
@@ -543,7 +543,7 @@ class BenchmarkDatabase(object):
         if not curr_data:
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            return []
+            return [], []
 
         prev_time = None
         for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime<? and Status=='OK' ORDER BY DateTime DESC LIMIT 1", (timestamp,)):
@@ -552,7 +552,7 @@ class BenchmarkDatabase(object):
         if not prev_time:
             msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            return []
+            return [], []
 
         prev_data = self.get_data_for_timestamp(prev_time)
 
