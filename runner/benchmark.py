@@ -594,7 +594,7 @@ class BenchmarkDatabase(object):
             pct_change = 100.*mem_delta/prev_memory
             if abs(pct_change) >= 10.:
                 inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "<%s|%s> %s by %4.1f%% (%5.2f  vs. %5.2f)" \
+                msg = "%s %s by %4.1f%% (%5.2f  vs. %5.2f)" \
                     % (link, inc_or_dec, abs(pct_change), curr_memory, prev_memory)
                 mem_messages.append(msg)
 
@@ -723,6 +723,8 @@ class BenchmarkDatabase(object):
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
+        except err:
+            raise err
 
         return filename
 
@@ -839,7 +841,7 @@ class BenchmarkDatabase(object):
         if not code:
             try:
                 dest = conf["data"]["upload"]
-                rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
+                rsync_cmd = "rsync -zvh " + name + ".bak " + dest + "/" + name
                 code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
             except KeyError:
                 pass  # remote backup not configured
@@ -1031,6 +1033,9 @@ class BenchmarkRunner(object):
 
     def run_unittests(self, name, trigger_msg):
         testflo_cmd = "testflo -n 1 -vs"
+
+        if "qsub" in conf and conf["qsub"]:
+             testflo_cmd += " --qsub"
 
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
