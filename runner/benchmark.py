@@ -301,7 +301,8 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/OpenMDAO/testflo")
+    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/swryan/testflo@work")
+    #code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/openmdao/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -535,7 +536,7 @@ class BenchmarkDatabase(object):
         if timestamp is None:
             msg = "No benchmark data found"
             logging.warn(msg)
-            return []
+            return [], []
 
         date_str = datetime.fromtimestamp(timestamp)
 
@@ -543,7 +544,7 @@ class BenchmarkDatabase(object):
         if not curr_data:
             msg = "No benchmark data found for timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            return []
+            return [], []
 
         prev_time = None
         for row in self.cursor.execute("SELECT * FROM BenchmarkData WHERE DateTime<? and Status=='OK' ORDER BY DateTime DESC LIMIT 1", (timestamp,)):
@@ -552,7 +553,7 @@ class BenchmarkDatabase(object):
         if not prev_time:
             msg = "No benchmark data found previous to timestamp %d (%s)" % (timestamp, date_str)
             logging.warn(msg)
-            return []
+            return [], []
 
         prev_data = self.get_data_for_timestamp(prev_time)
 
@@ -568,35 +569,36 @@ class BenchmarkDatabase(object):
             curr_load5   = curr_data["load_5m"][i]
             curr_load15  = curr_data["load_15m"][i]
 
-            prev_elapsed = prev_data["elapsed"][i]
-            prev_memory  = prev_data["memory"][i]
-            prev_load1   = prev_data["load_1m"][i]
-            prev_load5   = prev_data["load_5m"][i]
-            prev_load15  = prev_data["load_15m"][i]
+            if len(prev_data["elapsed"]) > i:
+                prev_elapsed = prev_data["elapsed"][i]
+                prev_memory  = prev_data["memory"][i]
+                prev_load1   = prev_data["load_1m"][i]
+                prev_load5   = prev_data["load_5m"][i]
+                prev_load15  = prev_data["load_15m"][i]
 
-            time_delta   = curr_elapsed - prev_elapsed
-            mem_delta    = curr_memory  - prev_memory
+                time_delta   = curr_elapsed - prev_elapsed
+                mem_delta    = curr_memory  - prev_memory
 
-            if "url" in conf:
-                link = "<%s|%s>" % (conf["url"]+self.name+'/'+curr_spec, curr_spec.split(".")[-1])
-            else:
-                link = curr_spec.split(".")[-1]
+                if "url" in conf:
+                    link = "<%s|%s>" % (conf["url"]+self.name+'/'+curr_spec, curr_spec.split(".")[-1])
+                else:
+                    link = curr_spec.split(".")[-1]
 
-            pct_change = 100.*time_delta/prev_elapsed
-            if abs(pct_change) >= 10.:
-                inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "%s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
-                    % (link, inc_or_dec, abs(pct_change),
-                       curr_elapsed, curr_load1, curr_load5, curr_load15,
-                       prev_elapsed, prev_load1, prev_load5, prev_load15)
-                cpu_messages.append(msg)
+                pct_change = 100.*time_delta/prev_elapsed
+                if abs(pct_change) >= 10.:
+                    inc_or_dec = "decreased" if (pct_change < 0) else "increased"
+                    msg = "%s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
+                        % (link, inc_or_dec, abs(pct_change),
+                           curr_elapsed, curr_load1, curr_load5, curr_load15,
+                           prev_elapsed, prev_load1, prev_load5, prev_load15)
+                    cpu_messages.append(msg)
 
-            pct_change = 100.*mem_delta/prev_memory
-            if abs(pct_change) >= 10.:
-                inc_or_dec = "decreased" if (pct_change < 0) else "increased"
-                msg = "<%s|%s> %s by %4.1f%% (%5.2f  vs. %5.2f)" \
-                    % (link, inc_or_dec, abs(pct_change), curr_memory, prev_memory)
-                mem_messages.append(msg)
+                pct_change = 100.*mem_delta/prev_memory
+                if abs(pct_change) >= 10.:
+                    inc_or_dec = "decreased" if (pct_change < 0) else "increased"
+                    msg = "%s %s by %4.1f%% (%5.2f  vs. %5.2f)" \
+                        % (link, inc_or_dec, abs(pct_change), curr_memory, prev_memory)
+                    mem_messages.append(msg)
 
         return cpu_messages, mem_messages
 
@@ -723,6 +725,8 @@ class BenchmarkDatabase(object):
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
+        except err:
+            raise err
 
         return filename
 
@@ -839,7 +843,7 @@ class BenchmarkDatabase(object):
         if not code:
             try:
                 dest = conf["data"]["upload"]
-                rsync_cmd = "rsync -zvh --progress " + name + ".bak " + dest + "/" + name
+                rsync_cmd = "rsync -zvh " + name + ".bak " + dest + "/" + name
                 code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
             except KeyError:
                 pass  # remote backup not configured
@@ -1032,6 +1036,9 @@ class BenchmarkRunner(object):
     def run_unittests(self, name, trigger_msg):
         testflo_cmd = "testflo -n 1 -vs"
 
+        #if "qsub" in conf and conf["qsub"]:
+        #     testflo_cmd += " --qsub"
+
         # run testflo command
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         logging.info(out)
@@ -1050,6 +1057,8 @@ class BenchmarkRunner(object):
         Use testflo to run benchmarks)
         """
         testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
+        if "qsub" in conf and conf["qsub"]:
+             testflo_cmd += " --qsub"
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         return code
 
