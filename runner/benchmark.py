@@ -1048,7 +1048,7 @@ class BenchmarkRunner(object):
         if code and self.slack:
             self.slack.post_message(trigger_msg + "However, unit tests failed... <!channel>")
             fail_msg = "\"%s : regression testing has failed. See attached results file.\"" % name
-            self.slack.post_file("test_report.out", fail_msg)
+            self.slack.post_file("testflo_report.out", fail_msg)
 
         return code
 
@@ -1058,7 +1058,7 @@ class BenchmarkRunner(object):
         """
         testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
         if "qsub" in conf and conf["qsub"]:
-             testflo_cmd += " --qsub"
+            testflo_cmd += " --qsub"
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
         return code
 
