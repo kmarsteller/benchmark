@@ -1,5 +1,6 @@
 {
-    "repository": "git@github.com:openmdao/OpenMDAO",
+    "repository": "git@github.com:swryan/OpenMDAO",
+    "branch": "brokenbench",
 
     "dependencies": [
         "python=2.7",
