@@ -963,7 +963,7 @@ class BenchmarkRunner(object):
 
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
-                        rc = self.run_unittests(project["name"], trigger_msg)
+                        rc = self.run_unittests(trigger_msg)
                         if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
