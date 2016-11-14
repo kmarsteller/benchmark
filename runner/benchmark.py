@@ -857,17 +857,25 @@ class BenchmarkRunner(object):
     this class encapsulates the logic required to conditionally run
     a set of benchmarks if a trigger repository is updated
     """
-    def __init__(self):
+    def __init__(self, project):
+        self.project = project
+
+        # load the database
+        self.db = BenchmarkDatabase(project["name"])
+
         if "slack" in conf:
             self.slack = Slack(conf["slack"], conf["ca"])
         else:
             self.slack = None
 
-    def run(self, project, force=False, keep_env=False, unit_tests=False):
+    def run(self, force=False, keep_env=False, unit_tests=False):
         """
         determine if a project or any of it's trigger dependencies have
         changed and run benchmarks if so
         """
+        project = self.project
+        db = self.db
+
         current_commits = {}
         triggered_by = []
 
@@ -875,9 +883,6 @@ class BenchmarkRunner(object):
         timestr = time.strftime("%Y%m%d-%H%M%S")
         run_name = project["name"] + "_" + timestr
         init_log_file(run_name)
-
-        # load the database
-        db = BenchmarkDatabase(project["name"])
 
         # remove any previous repo_dir for this project so we start fresh
         remove_dir(conf["repo_dir"])
@@ -917,26 +922,25 @@ class BenchmarkRunner(object):
         # - back up database
         if triggered_by:
             logging.info("Benchmark triggered by updates to: %s", str(triggered_by))
-            trigger_msg = self.get_trigger_message(project["name"], triggered_by, current_commits)
+            trigger_msg = self.get_trigger_message(triggered_by, current_commits)
 
             triggers = project.get("triggers", [])
             dependencies = project.get("dependencies", [])
+
+            # if unit testing fails, the current set of commits will be recorded in fail_file
+            fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
 
             # start out assuming we have a good set of commits
             good_commits = True
 
             # if unit testing is enabled, then check that we have not already failed unit testing
             if unit_tests:
-
-                # if unit testing fails, the current set of commits will be recorded in fail_file
-                fail_file = os.path.join(conf['working_dir'], project["name"]+".fail")
-
                 if os.path.exists(fail_file):
                     good_commits = False
                     failed_commits = read_json(fail_file)
                     for key in current_commits:
                         if current_commits[key] != failed_commits[key]:
-                            # there has been a new commit, set flag to r-run and delete fail_file
+                            # there has been a new commit, set flag to run and delete fail_file
                             logging.info("found new commit for %s", key)
                             logging.info("old commit: %s", failed_commits[key])
                             logging.info("new commit %s:", current_commits[key])
@@ -959,7 +963,7 @@ class BenchmarkRunner(object):
 
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
-                        rc = self.run_unittests(project["name"], trigger_msg)
+                        rc = self.run_unittests(trigger_msg)
                         if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
@@ -976,55 +980,15 @@ class BenchmarkRunner(object):
                                 installed_deps[name_ver[0]] = name_ver[1]
 
                         csv_file = run_name+".csv"
-                        self.run_benchmarks(csv_file)
-                        db.add_benchmark_data(current_commits, csv_file, installed_deps)
-
-                        # generate plots if requested and upload if image location is provided
-                        image_url = None
-                        plots = []
-                        summary_plots = []
-                        images = conf.get("images")
-                        if conf["plot_history"]:
-                            # plots = db.plot_all()
-                            summary_plots = db.plot_benchmarks(save=True)
-                            if images and plots + summary_plots:
-                                rc = upload(plots + summary_plots, conf["images"]["upload"])
-                                if rc == 0:
-                                    image_url = conf["images"]["url"]
-
-                        # if slack info is provided, post message to slack and
-                        # notify if any benchmarks changed by more than 10%
-                        if self.slack:
-                            # self.post_results(project["name"], trigger_msg, csv_file, image_url)
-
-                            # post message that benchmarks were run and summary plot(s)
-                            self.slack.post_message(trigger_msg)
-                            for plot_file in summary_plots:
-                                self.slack.post_image("", "/".join([image_url, plot_file]))
-
-                            # check benchmarks for significant changes & post any resulting messages
-                            cpu_messages, mem_messages = db.check_benchmarks()
-                            notify = "<!channel> The following %s benchmarks had a significant change in %s:\n"
-
-                            # post max_messages at a time
-                            max_messages = 9
-
-                            if cpu_messages:
-                                self.slack.post_message(notify % (project["name"], "elapsed time"))
-                                while cpu_messages:
-                                    msg = '\n'.join(cpu_messages[:max_messages])
-                                    self.slack.post_message(msg)
-                                    cpu_messages = cpu_messages[max_messages:]
-
-                            if mem_messages:
-                                self.slack.post_message(notify % (project["name"], "memory usage"))
-                                while mem_messages:
-                                    msg = '\n'.join(mem_messages[:max_messages])
-                                    self.slack.post_message(msg)
-                                    mem_messages = mem_messages[max_messages:]
-
-                        if conf["remove_csv"]:
-                            os.remove(csv_file)
+                        rc = self.run_benchmarks(trigger_msg, csv_file)
+                        if rc:
+                            write_json(fail_file, current_commits)
+                            good_commits = False
+                        else:
+                            db.add_benchmark_data(current_commits, csv_file, installed_deps)
+                            self.post_results(trigger_msg, csv_file)
+                            if conf["remove_csv"]:
+                                os.remove(csv_file)
 
                 if good_commits:
                     # back up and transfer database
@@ -1033,7 +997,55 @@ class BenchmarkRunner(object):
                 # clean up environment
                 remove_env(run_name, keep_env)
 
-    def run_unittests(self, name, trigger_msg):
+    def post_results(self, trigger_msg, csv_file):
+        """
+        generate plots and post a message to slack detailing benchmark results
+        """
+        db = self.db
+        name = self.project["name"]
+
+        # generate plots if requested and upload if image location is provided
+        image_url = None
+        plots = []
+        summary_plots = []
+        images = conf.get("images")
+        if conf["plot_history"]:
+            summary_plots = db.plot_benchmarks(save=True)
+            if images and plots + summary_plots:
+                rc = upload(plots + summary_plots, conf["images"]["upload"])
+                if rc == 0:
+                    image_url = conf["images"]["url"]
+
+        # if slack info is provided, post message to slack and
+        # notify if any benchmarks changed by more than 10%
+        if self.slack:
+            # post message that benchmarks were run with summary plot(s)
+            self.slack.post_message(trigger_msg)
+            for plot_file in summary_plots:
+                self.slack.post_image("", "/".join([image_url, plot_file]))
+
+            # check benchmarks for significant changes & post any resulting messages
+            cpu_messages, mem_messages = db.check_benchmarks()
+            notify = "<!channel> The following %s benchmarks had a significant change in %s:\n"
+
+            # post max_messages at a time
+            max_messages = 9
+
+            if cpu_messages:
+                self.slack.post_message(notify % (name, "elapsed time"))
+                while cpu_messages:
+                    msg = '\n'.join(cpu_messages[:max_messages])
+                    self.slack.post_message(msg)
+                    cpu_messages = cpu_messages[max_messages:]
+
+            if mem_messages:
+                self.slack.post_message(notify % (name, "memory usage"))
+                while mem_messages:
+                    msg = '\n'.join(mem_messages[:max_messages])
+                    self.slack.post_message(msg)
+                    mem_messages = mem_messages[max_messages:]
+
+    def run_unittests(self, trigger_msg):
         testflo_cmd = "testflo -n 1 -vs"
 
         #if "qsub" in conf and conf["qsub"]:
@@ -1047,12 +1059,12 @@ class BenchmarkRunner(object):
         # if failure, post to slack
         if code and self.slack:
             self.slack.post_message(trigger_msg + "However, unit tests failed... <!channel>")
-            fail_msg = "\"%s : regression testing has failed. See attached results file.\"" % name
+            fail_msg = "\"%s : regression testing has failed. See attached results file.\"" % self.project["name"]
             self.slack.post_file("testflo_report.out", fail_msg)
 
         return code
 
-    def run_benchmarks(self, csv_file):
+    def run_benchmarks(self, trigger_msg, csv_file):
         """
         Use testflo to run benchmarks)
         """
@@ -1060,12 +1072,21 @@ class BenchmarkRunner(object):
         if "qsub" in conf and conf["qsub"]:
             testflo_cmd += " --qsub"
         code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
+
+        # if failure, post to slack
+        if code and self.slack:
+            self.slack.post_message(trigger_msg + "However, benchmarks failed... <!channel>")
+            fail_msg = "\"%s : benchmarking has failed. See attached results file.\"" %  self.project["name"]
+            self.slack.post_file("testflo_report.out", fail_msg)
+
         return code
 
-    def get_trigger_message(self, name, triggered_by, current_commits):
+    def get_trigger_message(self, triggered_by, current_commits):
         """
         list specific commits (in link form)that caused this bench run
         """
+        name = self.project["name"]
+
         if "url" in conf:
             pretext = "<%s|%s> benchmarks triggered by " % (conf["url"]+name, name)
         else:
@@ -1090,61 +1111,6 @@ class BenchmarkRunner(object):
             pretext = pretext + "updates to: " + ", ".join(links) + "\n"
 
         return pretext
-
-    def post_results(self, name, pretext, filename, image_url=None):
-        """
-        post a message to slack detailing benchmark results
-        """
-        rows = ""
-        names = []
-        rslts = []
-        color = "good"
-        with open(filename, "r") as csvfile:
-            reader = csv.reader(csvfile)
-            for row in reader:
-                try:
-                    spec = row[1].rsplit('/', 1)[1]  # remove path from benchmark file name
-                    if image_url:
-                        image = spec.replace(":", "_") + ".png"
-                        plot = "[<%s/%s|History>]" % (image_url, image)
-                    else:
-                        plot = ""
-                    rows = rows + "\t%s \t\tResult: %s \tTime: %5.2f \tMemory: %5.2f \t %s\n" \
-                                  % (spec, row[2], float(row[3]), float(row[4]), plot)
-
-                    names.append("```%s```" % spec)
-                    rslts.append("```%s\t%8.2fs\t%8.2fmb\t%s```" % (row[2], float(row[3]), float(row[4]), plot))
-                    if row[2] != "OK":
-                        color = "danger"
-                except IndexError:
-                    logging.info("Invalid benchmark specification found in results:\n %s", str(row))
-
-            msg_count = int(math.ceil(len(names)/10.))
-            for m in range(msg_count):
-                if m > 0:
-                    pretext = "*%s* benchmarks continued:" % name
-                payload = {
-                    "attachments": [
-                        {
-                            "fallback": pretext + rows[:10],
-                            "color":    color,
-                            "pretext":  pretext,
-                            "fields": [
-                                { "title": "Benchmark", "value": "\n".join(names[:10]), "short": "true"},
-                                { "title": "Results",   "value": "\n".join(rslts[:10]), "short": "true"},
-                            ],
-                            "mrkdwn_in": ["pretext", "fields"]
-                        }
-                    ],
-                    "unfurl_links": "false",
-                    "unfurl_media": "false"
-                }
-
-                self.slack.post_payload(payload)
-
-                rows = rows[10:]
-                names = names[10:]
-                rslts = rslts[10:]
 
 
 #
@@ -1242,8 +1208,8 @@ def main(args=None):
                 conf["repo_dir"] = os.path.expanduser(
                     os.path.join(conf["working_dir"], (project_name+"_repos")))
 
-                bm = BenchmarkRunner()
-                bm.run(project_info, options.force, options.keep_env, options.unit_tests)
+                bm = BenchmarkRunner(project_info)
+                bm.run(options.force, options.keep_env, options.unit_tests)
 
 
 if __name__ == '__main__':
