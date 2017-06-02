@@ -84,20 +84,21 @@ def prepend_path(newdir, path):
     return path
 
 
-def get_exitcode_stdout_stderr(cmd):
+def execute_cmd(cmd):
     """
     Execute the external command and get its exitcode, stdout and stderr.
     """
-    logging.info("CMD => %s", cmd)
+    logging.info("> %s", cmd)
     args = shlex.split(cmd)
     proc = Popen(args, stdout=PIPE, stderr=PIPE, env=env)
     out, err = proc.communicate()
     rc = proc.returncode
-    logging.info("RC => %d", rc)
-    if out:
-        logging.debug("STDOUT =>\n%s", out)
-    if err:
-        logging.debug("STDERR =>\n%s", err)
+    if rc:
+        logging.info("RC: %d", rc)
+    if out.strip():
+        logging.debug(out)
+    if rc and err.strip():  # disregard inconsequential stderr output
+        logging.debug("STDERR:\n%s", err)
     return rc, out, err
 
 
@@ -109,7 +110,7 @@ def remove_dir(dirname):
     remove_cmd = "rm -rf " + dirname
 
     if os.path.exists(dirname):
-        code, out, err = get_exitcode_stdout_stderr(remove_cmd)
+        code, out, err = execute_cmd(remove_cmd)
 
 
 def upload(files, dest):
@@ -117,7 +118,7 @@ def upload(files, dest):
     upload files to destination via scp
     """
     cmd = "scp %s %s" % (" ".join(files), dest)
-    code, out, err = get_exitcode_stdout_stderr(cmd)
+    code, out, err = execute_cmd(cmd)
     return code
 
 
@@ -141,7 +142,7 @@ def init_logging():
 
 def init_log_file(name):
     """
-    initialize logging file with given name
+    initialize log file with given name
     """
     logs_dir = os.path.expanduser(os.path.join(conf["logs_dir"]))
     if not os.path.exists(logs_dir):
@@ -156,6 +157,18 @@ def init_log_file(name):
     log.addHandler(fh)
 
 
+def close_log_file():
+    """
+    close current log file(s)
+    """
+    log = logging.getLogger()
+    handlers = log.handlers[:]
+    for handler in handlers:
+        if isinstance(handler, logging.FileHandler):
+            handler.close()
+            log.removeHandler(handler)
+
+
 #
 # context managers
 #
@@ -165,7 +178,7 @@ def cd(newdir):
     """
     A cd that will better handle error and return to its orig dir.
     """
-    logging.info('cd into %s', newdir)
+    logging.info('> cd %s', newdir)
     prevdir = os.getcwd()
     fulldir = os.path.expanduser(newdir)
     if not os.path.exists(fulldir):
@@ -174,7 +187,7 @@ def cd(newdir):
     try:
         yield
     finally:
-        logging.info('cd from %s back to %s', fulldir, prevdir)
+        logging.info('> cd %s (from %s)', prevdir, fulldir)
         os.chdir(prevdir)
 
 
@@ -189,25 +202,27 @@ def repo(repository, branch=None):
     repo_dir = conf["repo_dir"]
     if not os.path.exists(repo_dir):
         os.makedirs(repo_dir)
-    logging.info('cd into repo dir %s from  %s', repo_dir, prev_dir)
+    logging.info('> cd %s (from %s)', repo_dir, prev_dir)
     os.chdir(repo_dir)
 
     repo_name = repository.split('/')[-1]
     if not os.path.isdir(repo_name):
         clone_repo(repository, branch)
 
-    logging.info('cd into repo %s', repo_name)
+    logging.info('> cd %s (REPO)', repo_name)
     os.chdir(repo_name)
     try:
         yield
     finally:
-        logging.info('cd from repo %s back to %s', repo_name, prev_dir)
+        logging.info('> cd %s (from REPO %s)', prev_dir, repo_name)
         os.chdir(prev_dir)
 
 
 #
 # respository helpers
 #
+
+repo_types = {}
 
 def clone_repo(repository, branch):
     """
@@ -220,14 +235,24 @@ def clone_repo(repository, branch):
         git_clone_cmd = "git clone " + repository
         hg_clone_cmd = "hg clone " + repository
 
-    code, out, err = get_exitcode_stdout_stderr(git_clone_cmd)
-    if code:
-        code, out, err = get_exitcode_stdout_stderr(hg_clone_cmd)
+    repo_type = repo_types.get(repository)
+    if repo_type is "git":
+        code, out, err = execute_cmd(git_clone_cmd)
+    elif repo_type is "hg":
+        code, out, err = execute_cmd(hg_clone_cmd)
+    else:
+        code, out, err = execute_cmd(git_clone_cmd)
+        if not code:
+            repo_types[repository] = "git"
+        else:
+            code, out, err = execute_cmd(hg_clone_cmd)
+            if not code:
+                repo_types[repository] = "hg"
     if code:
         raise RuntimeError("Could not clone %s" % repository)
 
 
-def get_current_commit():
+def get_current_commit(repository):
     """
     Update and check the current repo for the most recent commit.
     """
@@ -239,13 +264,21 @@ def get_current_commit():
     hg_commit = "hg id -i"
 
     # pull latest commit from desired branch and get the commit ID
-    code, out, err = get_exitcode_stdout_stderr(hg_pull)
-    if (code is 0):
-        code, out, err = get_exitcode_stdout_stderr(hg_merge)
-        code, out, err = get_exitcode_stdout_stderr(hg_commit)
+    repo_type = repo_types.get(repository)
+    if repo_type is "git":
+        code, out, err = execute_cmd(git_pull)
+        code, out, err = execute_cmd(git_commit)
+    elif repo_type is "hg":
+        code, out, err = execute_cmd(hg_merge)
+        code, out, err = execute_cmd(hg_commit)
     else:
-        code, out, err = get_exitcode_stdout_stderr(git_pull)
-        code, out, err = get_exitcode_stdout_stderr(git_commit)
+        code, out, err = execute_cmd(hg_pull)
+        if (code is 0):
+            code, out, err = execute_cmd(hg_merge)
+            code, out, err = execute_cmd(hg_commit)
+        else:
+            code, out, err = execute_cmd(git_pull)
+            code, out, err = execute_cmd(git_commit)
 
     return out  # .strip()   # TODO: strip the commit IDs in the database as well
 
@@ -259,6 +292,8 @@ def activate_env(env_name, dependencies, local_repos):
     Create and activate a conda env, install dependencies and then
     any local repositories
     """
+    logging.info("============= ACTIVATE ENV =============")
+    
     cmd = "conda create -y -q -n " + env_name
 
     # handle python and numpy/scipy dependencies
@@ -281,7 +316,7 @@ def activate_env(env_name, dependencies, local_repos):
     ])
     cmd = cmd + " " + conda_pkgs
 
-    code, out, err = get_exitcode_stdout_stderr(cmd)
+    code, out, err = execute_cmd(cmd)
     if (code != 0):
         raise RuntimeError("Failed to create conda environment", env_name, code, out, err)
 
@@ -301,8 +336,8 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/swryan/testflo@work")
-    #code, out, err = get_exitcode_stdout_stderr(pipinstall + "git+https://github.com/openmdao/testflo")
+    code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
+    #code, out, err = execute_cmd(pipinstall + "git+https://github.com/openmdao/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
@@ -310,16 +345,16 @@ def activate_env(env_name, dependencies, local_repos):
     for dependency in dependencies:
         # numpy and scipy are installed when the env is created
         if (not dependency.startswith("python=") and not dependency.startswith("numpy") and not dependency.startswith("scipy")):
-            code, out, err = get_exitcode_stdout_stderr(pipinstall + os.path.expanduser(dependency))
+            code, out, err = execute_cmd(pipinstall + os.path.expanduser(dependency))
             if (code != 0):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
 
     # triggers are installed from a local copy of the repo via 'setup.py install'
     for local_repo in local_repos:
         with repo(local_repo):
-            code, out, err = get_exitcode_stdout_stderr("pip install -e .")
+            code, out, err = execute_cmd("pip install -e .")
             if (code != 0):
-                code, out, err = get_exitcode_stdout_stderr("python setup.py install")
+                code, out, err = execute_cmd("python setup.py install")
             if (code != 0):
                 raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
 
@@ -341,7 +376,7 @@ def remove_env(env_name, keep_env):
 
     if not keep_env:
         conda_delete = "conda env remove -q -y --name " + env_name
-        code, out, err = get_exitcode_stdout_stderr(conda_delete)
+        code, out, err = execute_cmd(conda_delete)
         return code
 
 
@@ -403,7 +438,7 @@ class Slack(object):
 
         cmd = "curl -s -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (p, u, c)
 
-        code, out, err = get_exitcode_stdout_stderr(cmd)
+        code, out, err = execute_cmd(cmd)
         if code:
             logging.warn("Could not post msg to slack: %d\n%s\n%s", code, out, err)
 
@@ -421,7 +456,7 @@ class Slack(object):
         cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" \
              % (self.ca["cacert"], self.ca["capath"])
 
-        code, out, err = get_exitcode_stdout_stderr(cmd)
+        code, out, err = execute_cmd(cmd)
 
         if code:
             logging.warn("Could not post file to slack:\n%s\n%s", out, err)
@@ -721,7 +756,7 @@ class BenchmarkDatabase(object):
             if save:
                 filename = spec.replace(":", "_") + ".png"
                 pyplot.savefig(filename)
-                code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
+                code, out, err = execute_cmd("chmod 644 " + filename)
 
         except ImportError:
             logging.info("numpy and matplotlib are required to plot benchmark data.")
@@ -825,7 +860,7 @@ class BenchmarkDatabase(object):
                     from time import localtime, strftime
                     filename = self.name + strftime("_%H_", localtime()) + str(plot_no) + ".png"
                     pyplot.savefig(filename)
-                    code, out, err = get_exitcode_stdout_stderr("chmod 644 " + filename)
+                    code, out, err = execute_cmd("chmod 644 " + filename)
                     filenames.append(filename)
 
         except ImportError:
@@ -839,12 +874,12 @@ class BenchmarkDatabase(object):
         """
         name = self.dbname
         backup_cmd = "sqlite3 " + name + " \".backup " + name + ".bak\""
-        code, out, err = get_exitcode_stdout_stderr(backup_cmd)
+        code, out, err = execute_cmd(backup_cmd)
         if not code:
             try:
                 dest = conf["data"]["upload"]
                 rsync_cmd = "rsync -zvh " + name + ".bak " + dest + "/" + name
-                code, out, err = get_exitcode_stdout_stderr(rsync_cmd)
+                code, out, err = execute_cmd(rsync_cmd)
             except KeyError:
                 pass  # remote backup not configured
             except:
@@ -873,6 +908,11 @@ class BenchmarkRunner(object):
         determine if a project or any of it's trigger dependencies have
         changed and run benchmarks if so
         """
+        logging.info("\n************************************************"
+                     "\nRunning benchmarks for %s"
+                     "\n************************************************"
+                     % self.project["name"])
+
         project = self.project
         db = self.db
 
@@ -905,8 +945,8 @@ class BenchmarkRunner(object):
             with repo(trigger, branch):
                 msg = 'checking trigger ' + trigger + ' ' + branch if branch else ''
                 logging.info(msg)
-                current_commits[trigger] = get_current_commit()
-                logging.info("Current CommitID: %s", current_commits[trigger])
+                current_commits[trigger] = get_current_commit(trigger)
+                logging.info("Curr CommitID: %s", current_commits[trigger])
                 last_commit = str(db.get_last_commit(trigger))
                 logging.info("Last CommitID: %s", last_commit)
                 if (last_commit != current_commits[trigger]):
@@ -957,9 +997,10 @@ class BenchmarkRunner(object):
                 activate_env(run_name, dependencies, triggers)
 
                 with repo(project["repository"], project.get("branch", None)):
+                    logging.info("========== INSTALL PROJ & RUN ==========")
 
                     # install project
-                    get_exitcode_stdout_stderr("pip install -q -e .")
+                    execute_cmd("pip install -q -e .")
 
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
@@ -973,7 +1014,7 @@ class BenchmarkRunner(object):
 
                         # get list of installed dependencies
                         installed_deps = {}
-                        rc, out, err = get_exitcode_stdout_stderr("pip list")
+                        rc, out, err = execute_cmd("pip list")
                         for line in out.split('\n'):
                             name_ver = line.split(" ", 1)
                             if len(name_ver) == 2:
@@ -996,6 +1037,9 @@ class BenchmarkRunner(object):
 
                 # clean up environment
                 remove_env(run_name, keep_env)
+
+        # close the log file for this run
+        close_log_file()
 
     def post_results(self, trigger_msg, csv_file):
         """
@@ -1052,7 +1096,7 @@ class BenchmarkRunner(object):
         #     testflo_cmd += " --qsub"
 
         # run testflo command
-        code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
+        code, out, err = execute_cmd(testflo_cmd)
         logging.info(out)
         logging.warn(err)
 
@@ -1071,7 +1115,7 @@ class BenchmarkRunner(object):
         testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
         if "qsub" in conf and conf["qsub"]:
             testflo_cmd += " --qsub"
-        code, out, err = get_exitcode_stdout_stderr(testflo_cmd)
+        code, out, err = execute_cmd(testflo_cmd)
 
         # if failure, post to slack
         if code and self.slack:
