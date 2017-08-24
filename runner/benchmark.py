@@ -219,10 +219,11 @@ def repo(repository, branch=None):
 
 
 #
-# respository helpers
+# repository helpers
 #
 
 repo_types = {}
+
 
 def clone_repo(repository, branch):
     """
@@ -269,6 +270,7 @@ def get_current_commit(repository):
         code, out, err = execute_cmd(git_pull)
         code, out, err = execute_cmd(git_commit)
     elif repo_type is "hg":
+        code, out, err = execute_cmd(hg_pull)
         code, out, err = execute_cmd(hg_merge)
         code, out, err = execute_cmd(hg_commit)
     else:
@@ -280,7 +282,7 @@ def get_current_commit(repository):
             code, out, err = execute_cmd(git_pull)
             code, out, err = execute_cmd(git_commit)
 
-    return out  # .strip()   # TODO: strip the commit IDs in the database as well
+    return out.strip()   # TODO: strip the old commit IDs in the database as well
 
 
 #
@@ -293,7 +295,7 @@ def activate_env(env_name, dependencies, local_repos):
     any local repositories
     """
     logging.info("============= ACTIVATE ENV =============")
-    
+
     cmd = "conda create -y -q -n " + env_name
 
     # handle python and numpy/scipy dependencies
@@ -450,11 +452,11 @@ class Slack(object):
         """
         cmd = "curl -s "
 
-        cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
-             % (filename, title, filename, self.cfg["channel"], self.cfg["token"])
+        cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " % \
+               (filename, title, filename, self.cfg["channel"], self.cfg["token"])
 
-        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" \
-             % (self.ca["cacert"], self.ca["capath"])
+        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" % \
+               (self.ca["cacert"], self.ca["capath"])
 
         code, out, err = execute_cmd(cmd)
 
