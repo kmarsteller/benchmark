@@ -307,7 +307,6 @@ def activate_env(env_name, dependencies, local_repos):
         "git",          # for cloning git repos
         "mercurial",    # for cloning hg repos
         "swig",         # for building dependencies
-        "cython",       # for building dependencies
         "psutil",       # for testflo benchmarking
         "nomkl",        # TODO: experiment with this
         "matplotlib",   # for plotting results
