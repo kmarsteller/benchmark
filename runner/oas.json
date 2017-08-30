@@ -1,0 +1,12 @@
+{
+    "repository": "git@github.com:johnjasa/OpenAeroStruct",
+    "branch": "blue",
+
+    "dependencies": [
+        "python=2.7",
+        "numpy",
+        "scipy",
+        "git+https://github.com/openmdao/blue"
+    ]
+}
+
