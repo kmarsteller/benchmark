@@ -4,7 +4,7 @@
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
         "git@github.com:openmdao/MBI",
-        "https://bitbucket.org/mdolab/pyoptsparse"
+        "~/dev/pyoptsparse"
     ],
 
     "dependencies": [

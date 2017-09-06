@@ -10,8 +10,6 @@
         "python=2.7",
         "numpy",
         "scipy",
-        "networkx",
-        "sqlitedict",
         "nose"
     ]
 }
