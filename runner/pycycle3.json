@@ -1,0 +1,16 @@
+{
+    "repository": "git@github.com:openmdao/pycycle3",
+
+    "triggers": [
+        "~/dev/pyoptsparse"
+    ],
+
+    "dependencies": [
+        "python=3",
+        "numpy",
+        "scipy",
+        "mpi4py",
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0"
+    ]
+}
+

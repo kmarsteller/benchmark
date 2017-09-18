@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import division
+from __future__ import print_function, division
 
 import traceback
 
@@ -84,11 +84,52 @@ def prepend_path(newdir, path):
     return path
 
 
+def init_env(project_info):
+    """
+    initialize env for commands with benchmark and project custmizations
+    """
+    # reset env to be copy of current env
+    global env
+    env = os.environ.copy()
+
+    # prepend benchmark dir to PATH to intercept mpirun command
+    env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
+
+    # add any env vars from benchmark config
+    if "env" in conf:
+        for key, val in conf["env"].items():
+            if val.find('~') >= 0:
+                print('expand ~ in', val)
+                val = os.path.expanduser(val)
+                print('expanded ~ in', val)
+            if val.find('$') >= 0:
+                val = os.path.expandvars(val)
+            val = val.replace("$PYTHONPATH:", "")  # in case it was empty
+            print("setting global ENV", key, "=", val)
+            env[key] = val
+
+    # add any project specific env vars
+    if "env" in project_info:
+        for key, val in project_info["env"].items():
+            print("checking val:", val)
+            if val.find('~') >= 0:
+                print('expand ~ in', val)
+                val = os.path.expanduser(val)
+                print('expanded ~ in', val)
+            if val.find('$') >= 0:
+                val = os.path.expandvars(val)
+            val = val.replace("$PYTHONPATH:", "")  # in case it was empty
+            print("setting %s ENV" % project_info["name"], key, "=", val)
+            env[key] = val
+
+    print("PYTHONPATH for", project_info["name"], env["PYTHONPATH"])
+
 def execute_cmd(cmd):
     """
     Execute the external command and get its exitcode, stdout and stderr.
     """
     logging.info("> %s", cmd)
+    print("command PYTHONPATH:", env.get("PYTHONPATH"))
     args = shlex.split(cmd)
     proc = Popen(args, stdout=PIPE, stderr=PIPE, env=env)
     out, err = proc.communicate()
@@ -307,7 +348,6 @@ def activate_env(env_name, dependencies, local_repos):
     conda_pkgs = " ".join([
         "pip",          # for installing dependencies
         "git",          # for cloning git repos
-        "mercurial",    # for cloning hg repos
         "swig",         # for building dependencies
         "psutil",       # for testflo benchmarking
         "nomkl",        # TODO: experiment with this
@@ -334,7 +374,7 @@ def activate_env(env_name, dependencies, local_repos):
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # need to do a pip install with --prefix to get things installed into proper conda env
-    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
+    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin", "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
     code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
@@ -345,7 +385,8 @@ def activate_env(env_name, dependencies, local_repos):
     # dependencies are pip installed
     for dependency in dependencies:
         # numpy and scipy are installed when the env is created
-        if (not dependency.startswith("python=") and not dependency.startswith("numpy") and not dependency.startswith("scipy")):
+        if (not dependency.startswith("python=") and \
+            not dependency.startswith("numpy") and not dependency.startswith("scipy")):
             code, out, err = execute_cmd(pipinstall + os.path.expanduser(dependency))
             if (code != 0):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
@@ -355,7 +396,7 @@ def activate_env(env_name, dependencies, local_repos):
         with repo(local_repo):
             code, out, err = execute_cmd("pip install -q -e .")
             if (code != 0):
-                code, out, err = execute_cmd("python setup.py install -q")
+                code, out, err = execute_cmd("python setup.py -q install")
             if (code != 0):
                 raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
 
@@ -933,10 +974,11 @@ class BenchmarkRunner(object):
         if force:
             triggered_by.append('force')
 
-        triggers = project.get("triggers", [])
-        triggers.append(project["repository"])
+        check_triggers = project.get("triggers", [])
+        check_triggers.append(project["repository"])
 
-        for trigger in triggers:
+        for trigger in check_triggers:
+            trigger = os.path.expanduser(trigger)
             # for the project repository, we may want a particular branch
             if trigger is project["repository"]:
                 branch = project.get("branch", None)
@@ -1209,14 +1251,6 @@ def main(args=None):
     except IOError:
         pass
 
-    # add any env vars from the config to the working env
-    if "env" in conf:
-        for key, val in conf["env"].iteritems():
-            env[key] = val
-
-    # prepend benchmark dir to PATH to intercept mpirun command
-    env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
-
     # initalize logging to stdout
     init_logging()
 
@@ -1230,8 +1264,14 @@ def main(args=None):
             else:
                 project_file = project+".json"
             project_info = read_json(project_file)
+
+            if project_info.get("skip"):
+                continue
+
             project_name = os.path.basename(project_file).rsplit('.', 1)[0]
             project_info["name"] = project_name
+
+            init_env(project_info)
 
             # perform requested action, or just run benchmarks
             if options.plot:
