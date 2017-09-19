@@ -1,20 +1,17 @@
 {
     "repository": "git@github.com:openmdao/pointer2",
 
-    "env": {
-        "PYTHONPATH": "$PYTHONPATH:$HOME/pyoptsparse/build/lib.linux-x86_64-2.7"
-    },
-
     "triggers": [
         "git@github.com:openmdao/blue",
         "git@github.com:SMTorg/smt"
     ],
 
     "dependencies": [
-        "python=2.7",
-        "numpy=1.12",
+        "python=2",
+        "numpy",
         "scipy",
-        "mpi4py"
+        "mpi4py",
+        "~/dev/pyoptsparse"
     ]
 }
 

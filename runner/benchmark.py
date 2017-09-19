@@ -86,50 +86,43 @@ def prepend_path(newdir, path):
 
 def init_env(project_info):
     """
-    initialize env for commands with benchmark and project custmizations
+    initialize env for commands with benchmark and project customizations
     """
-    # reset env to be copy of current env
+    # reset env to be copy of current OS env
     global env
     env = os.environ.copy()
 
-    # prepend benchmark dir to PATH to intercept mpirun command
+    # prepend benchmark dir to PATH (to intercept mpirun command)
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
     # add any env vars from benchmark config
     if "env" in conf:
         for key, val in conf["env"].items():
             if val.find('~') >= 0:
-                print('expand ~ in', val)
                 val = os.path.expanduser(val)
-                print('expanded ~ in', val)
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
             val = val.replace("$PYTHONPATH:", "")  # in case it was empty
-            print("setting global ENV", key, "=", val)
+            print("setting benchmark ENV", key, "=", val)
             env[key] = val
 
     # add any project specific env vars
     if "env" in project_info:
         for key, val in project_info["env"].items():
-            print("checking val:", val)
             if val.find('~') >= 0:
-                print('expand ~ in', val)
                 val = os.path.expanduser(val)
-                print('expanded ~ in', val)
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
             val = val.replace("$PYTHONPATH:", "")  # in case it was empty
             print("setting %s ENV" % project_info["name"], key, "=", val)
             env[key] = val
 
-    print("PYTHONPATH for", project_info["name"], env["PYTHONPATH"])
 
 def execute_cmd(cmd):
     """
     Execute the external command and get its exitcode, stdout and stderr.
     """
     logging.info("> %s", cmd)
-    print("command PYTHONPATH:", env.get("PYTHONPATH"))
     args = shlex.split(cmd)
     proc = Popen(args, stdout=PIPE, stderr=PIPE, env=env)
     out, err = proc.communicate()
@@ -382,16 +375,22 @@ def activate_env(env_name, dependencies, local_repos):
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
-    # dependencies are pip installed
+    # install dependencies
     for dependency in dependencies:
-        # numpy and scipy are installed when the env is created
-        if (not dependency.startswith("python=") and \
-            not dependency.startswith("numpy") and not dependency.startswith("scipy")):
-            code, out, err = execute_cmd(pipinstall + os.path.expanduser(dependency))
+        # if dependency is local "setup.py install" it, otherwise "pip install" it
+        if dependency.startswith("~"):
+            with cd(os.path.expanduser(dependency)):
+                code, out, err = execute_cmd("python setup.py -q install")
+            if (code != 0):
+                raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
+        # python, numpy and scipy are installed when the env is created
+        elif (not dependency.startswith("python=") and
+              not dependency.startswith("numpy") and not dependency.startswith("scipy")):
+            code, out, err = execute_cmd(pipinstall + dependency)
             if (code != 0):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
 
-    # triggers are installed from a local copy of the repo via 'setup.py install'
+    # install from local repos
     for local_repo in local_repos:
         with repo(local_repo):
             code, out, err = execute_cmd("pip install -q -e .")
@@ -974,10 +973,9 @@ class BenchmarkRunner(object):
         if force:
             triggered_by.append('force')
 
-        check_triggers = project.get("triggers", [])
-        check_triggers.append(project["repository"])
+        triggers = project.get("triggers", [])
 
-        for trigger in check_triggers:
+        for trigger in triggers + [project["repository"]]:
             trigger = os.path.expanduser(trigger)
             # for the project repository, we may want a particular branch
             if trigger is project["repository"]:
@@ -1007,7 +1005,6 @@ class BenchmarkRunner(object):
             logging.info("Benchmark triggered by updates to: %s", str(triggered_by))
             trigger_msg = self.get_trigger_message(triggered_by, current_commits)
 
-            triggers = project.get("triggers", [])
             dependencies = project.get("dependencies", [])
 
             # if unit testing fails, the current set of commits will be recorded in fail_file

@@ -2,15 +2,17 @@
     "repository": "git@github.com:openmdao/pycycle3",
 
     "triggers": [
-        "~/dev/pyoptsparse"
+        "git@github.com:openmdao/blue",
+        "git@github.com:SMTorg/smt"
     ],
 
     "dependencies": [
-        "python=3",
+        "python=2",
         "numpy",
         "scipy",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc4py@3.7.0"
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
+        "~/dev/pyoptsparse"
     ]
 }
 

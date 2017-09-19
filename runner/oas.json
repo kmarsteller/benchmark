@@ -2,6 +2,8 @@
     "repository": "git@github.com:johnjasa/OpenAeroStruct",
     "branch": "blue",
 
+    "skip": 1,
+
     "dependencies": [
         "python=2.7",
         "numpy",

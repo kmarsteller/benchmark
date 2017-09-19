@@ -1,6 +1,8 @@
 {
     "repository": "git@github.com:OpenMDAO/mission-allocation",
 
+    "skip": 1,
+
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
         "git@github.com:openmdao/MBI",

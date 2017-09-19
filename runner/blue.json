@@ -2,15 +2,15 @@
     "repository": "git@github.com:openmdao/blue",
 
     "triggers": [
-        "~/dev/pyoptsparse"
     ],
 
     "dependencies": [
-        "python=3",
+        "python=2",
         "numpy",
         "scipy",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc4py@3.7.0"
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
+        "~/dev/pyoptsparse"
     ]
 }
 
