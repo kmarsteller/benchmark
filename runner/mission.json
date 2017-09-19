@@ -5,8 +5,7 @@
 
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
-        "git@github.com:openmdao/MBI",
-        "~/dev/pyoptsparse"
+        "git@github.com:openmdao/MBI"
     ],
 
     "dependencies": [
@@ -14,7 +13,8 @@
         "numpy",
         "scipy",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc4py@3.7.0"
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
+        "~/dev/pyoptsparse"
     ]
 }
 
