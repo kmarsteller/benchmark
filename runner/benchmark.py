@@ -382,7 +382,7 @@ def activate_env(env_name, dependencies, local_repos):
             with cd(os.path.expanduser(dependency)):
                 code, out, err = execute_cmd("python setup.py -q install")
             if (code != 0):
-                raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
+                raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
         # python, numpy and scipy are installed when the env is created
         elif (not dependency.startswith("python=") and
               not dependency.startswith("numpy") and not dependency.startswith("scipy")):
