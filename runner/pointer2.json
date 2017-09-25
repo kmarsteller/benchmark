@@ -7,7 +7,7 @@
     ],
 
     "dependencies": [
-        "python=2",
+        "python=3",
         "numpy",
         "scipy",
         "mpi4py",
