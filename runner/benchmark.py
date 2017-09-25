@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from __future__ import division
+from __future__ import print_function, division
 
 import traceback
 
@@ -82,6 +82,40 @@ def prepend_path(newdir, path):
     dirs.insert(0, newdir)
     path = (os.pathsep).join(dirs)
     return path
+
+
+def init_env(project_info):
+    """
+    initialize env for commands with benchmark and project customizations
+    """
+    # reset env to be copy of current OS env
+    global env
+    env = os.environ.copy()
+
+    # prepend benchmark dir to PATH (to intercept mpirun command)
+    env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
+
+    # add any env vars from benchmark config
+    if "env" in conf:
+        for key, val in conf["env"].items():
+            if val.find('~') >= 0:
+                val = os.path.expanduser(val)
+            if val.find('$') >= 0:
+                val = os.path.expandvars(val)
+            val = val.replace("$PYTHONPATH", "")  # in case it was empty
+            print("setting benchmark ENV", key, "=", val)
+            env[key] = val
+
+    # add any project specific env vars
+    if "env" in project_info:
+        for key, val in project_info["env"].items():
+            if val.find('~') >= 0:
+                val = os.path.expanduser(val)
+            if val.find('$') >= 0:
+                val = os.path.expandvars(val)
+            val = val.replace("$PYTHONPATH", "")  # in case it was empty
+            print("setting %s ENV" % project_info["name"], key, "=", val)
+            env[key] = val
 
 
 def execute_cmd(cmd):
@@ -219,10 +253,11 @@ def repo(repository, branch=None):
 
 
 #
-# respository helpers
+# repository helpers
 #
 
 repo_types = {}
+
 
 def clone_repo(repository, branch):
     """
@@ -269,6 +304,7 @@ def get_current_commit(repository):
         code, out, err = execute_cmd(git_pull)
         code, out, err = execute_cmd(git_commit)
     elif repo_type is "hg":
+        code, out, err = execute_cmd(hg_pull)
         code, out, err = execute_cmd(hg_merge)
         code, out, err = execute_cmd(hg_commit)
     else:
@@ -280,7 +316,7 @@ def get_current_commit(repository):
             code, out, err = execute_cmd(git_pull)
             code, out, err = execute_cmd(git_commit)
 
-    return out  # .strip()   # TODO: strip the commit IDs in the database as well
+    return out.strip()   # TODO: strip the old commit IDs in the database as well
 
 
 #
@@ -293,7 +329,7 @@ def activate_env(env_name, dependencies, local_repos):
     any local repositories
     """
     logging.info("============= ACTIVATE ENV =============")
-    
+
     cmd = "conda create -y -q -n " + env_name
 
     # handle python and numpy/scipy dependencies
@@ -305,9 +341,7 @@ def activate_env(env_name, dependencies, local_repos):
     conda_pkgs = " ".join([
         "pip",          # for installing dependencies
         "git",          # for cloning git repos
-        "mercurial",    # for cloning hg repos
         "swig",         # for building dependencies
-        "cython",       # for building dependencies
         "psutil",       # for testflo benchmarking
         "nomkl",        # TODO: experiment with this
         "matplotlib",   # for plotting results
@@ -333,7 +367,7 @@ def activate_env(env_name, dependencies, local_repos):
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # need to do a pip install with --prefix to get things installed into proper conda env
-    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin",  "envs/"+env_name) + "\" "
+    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin", "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
     code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
@@ -341,20 +375,27 @@ def activate_env(env_name, dependencies, local_repos):
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
 
-    # dependencies are pip installed
+    # install dependencies
     for dependency in dependencies:
-        # numpy and scipy are installed when the env is created
-        if (not dependency.startswith("python=") and not dependency.startswith("numpy") and not dependency.startswith("scipy")):
-            code, out, err = execute_cmd(pipinstall + os.path.expanduser(dependency))
+        # if dependency is local "setup.py install" it, otherwise "pip install" it
+        if dependency.startswith("~"):
+            with cd(os.path.expanduser(dependency)):
+                code, out, err = execute_cmd("python setup.py -q install")
+            if (code != 0):
+                raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
+        # python, numpy and scipy are installed when the env is created
+        elif (not dependency.startswith("python=") and
+              not dependency.startswith("numpy") and not dependency.startswith("scipy")):
+            code, out, err = execute_cmd(pipinstall + dependency)
             if (code != 0):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
 
-    # triggers are installed from a local copy of the repo via 'setup.py install'
+    # install from local repos
     for local_repo in local_repos:
         with repo(local_repo):
-            code, out, err = execute_cmd("pip install -e .")
+            code, out, err = execute_cmd("pip install -q -e .")
             if (code != 0):
-                code, out, err = execute_cmd("python setup.py install")
+                code, out, err = execute_cmd("python setup.py -q install")
             if (code != 0):
                 raise RuntimeError("Failed to install", local_repo, "to", env_name, code, out, err)
 
@@ -450,11 +491,11 @@ class Slack(object):
         """
         cmd = "curl -s "
 
-        cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " \
-             % (filename, title, filename, self.cfg["channel"], self.cfg["token"])
+        cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " % \
+               (filename, title, filename, self.cfg["channel"], self.cfg["token"])
 
-        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" \
-             % (self.ca["cacert"], self.ca["capath"])
+        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" % \
+               (self.ca["cacert"], self.ca["capath"])
 
         code, out, err = execute_cmd(cmd)
 
@@ -933,9 +974,9 @@ class BenchmarkRunner(object):
             triggered_by.append('force')
 
         triggers = project.get("triggers", [])
-        triggers.append(project["repository"])
 
-        for trigger in triggers:
+        for trigger in triggers + [project["repository"]]:
+            trigger = os.path.expanduser(trigger)
             # for the project repository, we may want a particular branch
             if trigger is project["repository"]:
                 branch = project.get("branch", None)
@@ -964,7 +1005,6 @@ class BenchmarkRunner(object):
             logging.info("Benchmark triggered by updates to: %s", str(triggered_by))
             trigger_msg = self.get_trigger_message(triggered_by, current_commits)
 
-            triggers = project.get("triggers", [])
             dependencies = project.get("dependencies", [])
 
             # if unit testing fails, the current set of commits will be recorded in fail_file
@@ -1006,7 +1046,7 @@ class BenchmarkRunner(object):
                     if unit_tests:
                         rc = self.run_unittests(trigger_msg)
                         if rc:
-                            write_json(fail_file, current_commits)
+                            write_json(fail_file, str(current_commits))
                             good_commits = False
 
                     # if we still show good commits, run benchmarks and add data to database
@@ -1146,7 +1186,7 @@ class BenchmarkRunner(object):
                     commit = "/commits/"
                 else:
                     commit = "/commit/"
-                links.append(url + commit + current_commits[url].strip('\n'))
+                links.append(url + commit + str(current_commits[url]).strip('\n'))
 
             # insert proper formatting so long URL text is replaced by short trigger-name hyperlink
             links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
@@ -1208,14 +1248,6 @@ def main(args=None):
     except IOError:
         pass
 
-    # add any env vars from the config to the working env
-    if "env" in conf:
-        for key, val in conf["env"].iteritems():
-            env[key] = val
-
-    # prepend benchmark dir to PATH to intercept mpirun command
-    env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
-
     # initalize logging to stdout
     init_logging()
 
@@ -1229,8 +1261,14 @@ def main(args=None):
             else:
                 project_file = project+".json"
             project_info = read_json(project_file)
+
+            if project_info.get("skip"):
+                continue
+
             project_name = os.path.basename(project_file).rsplit('.', 1)[0]
             project_info["name"] = project_name
+
+            init_env(project_info)
 
             # perform requested action, or just run benchmarks
             if options.plot:

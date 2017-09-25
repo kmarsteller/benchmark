@@ -1,6 +1,8 @@
 {
     "repository": "git@github.com:OpenMDAO/CADRE",
 
+    "skip": 1,
+
     "triggers": [
         "git@github.com:openmdao/OpenMDAO",
         "git@github.com:openmdao/MBI"
@@ -8,13 +10,10 @@
 
     "dependencies": [
         "python=2.7",
-        "numpy",
+        "numpy=1.12",
         "scipy",
-        "networkx",
-        "sqlitedict",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc@v3.5",
-        "git+https://bitbucket.org/petsc/petsc4py@3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
         "~/dev/pyoptsparse"
     ]
 }

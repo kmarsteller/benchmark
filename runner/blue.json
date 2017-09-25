@@ -1,15 +1,11 @@
 {
-    "repository": "git@github.com:OpenMDAO/mission-allocation",
-
-    "skip": 1,
+    "repository": "git@github.com:openmdao/blue",
 
     "triggers": [
-        "git@github.com:openmdao/OpenMDAO",
-        "git@github.com:openmdao/MBI"
     ],
 
     "dependencies": [
-        "python=2.7",
+        "python=2",
         "numpy",
         "scipy",
         "mpi4py",

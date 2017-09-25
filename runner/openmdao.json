@@ -1,13 +1,14 @@
 {
     "repository": "git@github.com:openmdao/OpenMDAO",
 
+    "skip": 1,
+
     "dependencies": [
         "python=2.7",
         "numpy",
         "scipy",
         "mpi4py",
-        "git+https://bitbucket.org/petsc/petsc@v3.5",
-        "git+https://bitbucket.org/petsc/petsc4py@3.5",
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
         "~/dev/pyoptsparse"
     ]
 }
