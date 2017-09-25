@@ -102,7 +102,7 @@ def init_env(project_info):
                 val = os.path.expanduser(val)
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
-            val = val.replace("$PYTHONPATH:", "")  # in case it was empty
+            val = val.replace("$PYTHONPATH", "")  # in case it was empty
             print("setting benchmark ENV", key, "=", val)
             env[key] = val
 
@@ -113,7 +113,7 @@ def init_env(project_info):
                 val = os.path.expanduser(val)
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
-            val = val.replace("$PYTHONPATH:", "")  # in case it was empty
+            val = val.replace("$PYTHONPATH", "")  # in case it was empty
             print("setting %s ENV" % project_info["name"], key, "=", val)
             env[key] = val
 
@@ -1046,7 +1046,7 @@ class BenchmarkRunner(object):
                     if unit_tests:
                         rc = self.run_unittests(trigger_msg)
                         if rc:
-                            write_json(fail_file, current_commits)
+                            write_json(fail_file, str(current_commits))
                             good_commits = False
 
                     # if we still show good commits, run benchmarks and add data to database
@@ -1186,7 +1186,7 @@ class BenchmarkRunner(object):
                     commit = "/commits/"
                 else:
                     commit = "/commit/"
-                links.append(url + commit + current_commits[url].strip('\n'))
+                links.append(url + commit + str(current_commits[url]).strip('\n'))
 
             # insert proper formatting so long URL text is replaced by short trigger-name hyperlink
             links = ["<%s|%s>" % (url.replace("git@github.com:", "https://github.com/"), url.split('/')[-3])
