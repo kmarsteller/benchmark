@@ -1046,7 +1046,7 @@ class BenchmarkRunner(object):
                     if unit_tests:
                         rc = self.run_unittests(trigger_msg)
                         if rc:
-                            write_json(fail_file, str(current_commits))
+                            write_json(fail_file, current_commits)
                             good_commits = False
 
                     # if we still show good commits, run benchmarks and add data to database
@@ -1262,7 +1262,7 @@ def main(args=None):
                 project_file = project+".json"
             project_info = read_json(project_file)
 
-            if project_info.get("skip"):
+            if project_info.get("skip") and not options.force:
                 continue
 
             project_name = os.path.basename(project_file).rsplit('.', 1)[0]
