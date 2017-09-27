@@ -1140,6 +1140,15 @@ class BenchmarkRunner(object):
         logging.info(out)
         logging.warn(err)
 
+        if code:
+            # an expected failure will return an error code, check fail count
+            for line in open("testflo_report.out"):
+                if line.startswith("Failed:"):
+                    if line.split()[1] == "0":
+                        print("testflo returned non-zero but there were no failures.")
+                        code = 0
+                    break
+
         # if failure, post to slack
         if code and self.slack:
             self.slack.post_message(trigger_msg + "However, unit tests failed... <!channel>")
