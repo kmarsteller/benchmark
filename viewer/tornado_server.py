@@ -17,7 +17,7 @@ def date(timestamp):
 # default configuration options
 #
 conf = {
-    "database_dir": os.path.abspath(os.path.dirname(__file__)),
+    "database_dir": os.path.abspath(os.path.join(os.path.dirname(__file__),"../runner")),
     "base_url": ""
 }
 
