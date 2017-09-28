@@ -4,11 +4,17 @@
 
     "skip": 1,
 
+    "triggers": [
+        "git@github.com:openmdao/blue"
+    ],
+
     "dependencies": [
-        "python=2.7",
+        "python=2",
         "numpy",
         "scipy",
-        "git+https://github.com/openmdao/blue"
+        "mpi4py",
+        "git+https://bitbucket.org/petsc/petsc4py@3.7.0",
+        "~/dev/pyoptsparse"
     ]
 }
 
