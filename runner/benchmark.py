@@ -595,10 +595,10 @@ class BenchmarkDatabase(object):
             for dep, ver in installed.items():
                 self.cursor.execute("INSERT INTO InstalledDeps VALUES(?, ?, ?)", (timestamp, dep, ver))
 
-    def check_benchmarks(self, timestamp=None):
+    def check_benchmarks(self, timestamp=None, threshold=15.):
         """
-        Check the benchmark data from the given timestep for any benchmark with
-        a 10% or greater change in elapsed time or memory usage.
+        Check the benchmark data from the given timestep for any benchmark with a
+        significant change (greater than threshold) in elapsed time or memory usage.
         If no timestamp is given then check the most recent benchmark data.
         """
         self._ensure_benchmark_data()
@@ -661,7 +661,7 @@ class BenchmarkDatabase(object):
                     link = curr_spec.split(".")[-1]
 
                 pct_change = 100.*time_delta/prev_elapsed
-                if abs(pct_change) >= 10.:
+                if abs(pct_change) >= threshold:
                     inc_or_dec = "decreased" if (pct_change < 0) else "increased"
                     msg = "%s %s by %4.1f%%: %5.2f (load avg = %3.1f, %3.1f, %3.1f) vs. %5.2f (load avg = %3.1f, %3.1f, %3.1f)" \
                         % (link, inc_or_dec, abs(pct_change),
@@ -670,7 +670,7 @@ class BenchmarkDatabase(object):
                     cpu_messages.append(msg)
 
                 pct_change = 100.*mem_delta/prev_memory
-                if abs(pct_change) >= 10.:
+                if abs(pct_change) >= threshold:
                     inc_or_dec = "decreased" if (pct_change < 0) else "increased"
                     msg = "%s %s by %4.1f%% (%5.2f  vs. %5.2f)" \
                         % (link, inc_or_dec, abs(pct_change), curr_memory, prev_memory)

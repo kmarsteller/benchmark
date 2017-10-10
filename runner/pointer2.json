@@ -3,11 +3,12 @@
 
     "triggers": [
         "git@github.com:openmdao/blue",
+        "git@github.com:openmdao/MBI",
         "git@github.com:SMTorg/smt"
     ],
 
     "dependencies": [
-        "python=3",
+        "python=2",
         "numpy",
         "scipy",
         "mpi4py",
