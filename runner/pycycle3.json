@@ -2,7 +2,7 @@
     "repository": "git@github.com:openmdao/pycycle3",
 
     "triggers": [
-        "git@github.com:openmdao/blue"
+        "git@github.com:openmdao/OpenMDAO"
     ],
 
     "dependencies": [
