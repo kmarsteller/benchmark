@@ -1,11 +1,11 @@
 {
-    "repository": "git@github.com:openmdao/openmdao",
+    "repository": "git@github.com:openmdao/OpenMDAO",
 
     "triggers": [
     ],
 
     "dependencies": [
-        "python=2",
+        "python=2.7",
         "numpy",
         "scipy",
         "mpi4py",
