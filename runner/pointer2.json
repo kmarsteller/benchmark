@@ -2,7 +2,7 @@
     "repository": "git@github.com:openmdao/pointer2",
 
     "triggers": [
-        "git@github.com:openmdao/blue",
+        "git@github.com:openmdao/OpenMDAO",
         "git@github.com:openmdao/MBI",
         "git@github.com:SMTorg/smt"
     ],
