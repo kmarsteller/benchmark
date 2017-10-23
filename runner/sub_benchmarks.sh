@@ -50,12 +50,6 @@ cat << EOM >job
 # USE_PROC_FILES causes I/O erros when using MPI.Spawn
 unset USE_PROC_FILES
 
-#module load openmpi/1.10.2/gnu/64bit
-
-# workaround for dlopen issue
-LD_PRELOAD=/hx/software/apps/openmpi/1.10.2/64bit/gnu/lib/libmpi.so
-
-
 # check MPI/PETSc config
 echo ---- PATHs ----
 env | grep PATH

@@ -370,8 +370,7 @@ def activate_env(env_name, dependencies, local_repos):
     pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin", "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
-    code, out, err = execute_cmd(pipinstall + "/mdao/u/swryan/dev/testflo")
-    #code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
+    code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
     #code, out, err = execute_cmd(pipinstall + "git+https://github.com/openmdao/testflo")
     if (code != 0):
         raise RuntimeError("Failed to install testflo to", env_name, code, out, err)
