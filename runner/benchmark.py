@@ -1158,17 +1158,13 @@ class BenchmarkRunner(object):
         """
         Use testflo to run benchmarks)
         """
-        testflo_opts = conf.get("testflo")
-        if testflo_opts:
-            if "mpispawn" in testflo_opts:
-                # if using mpispawn, then submit via the scheduler
-                testflo_cmd = "sub_benchmarks.sh %s %s" % (run_name, csv_file)
-            else:
-                testflo_cmd = "testflo -n 1 -bv %s -d %s" % (testflo_opts, csv_file)
+        benchmark_cmd = conf.get("benchmark_cmd")
+        if benchmark_cmd:
+            benchmark_cmd = "%s %s %s" % (benchmark_cmd, run_name, csv_file)
         else:
-            testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
+            benchmark_cmd = "testflo -n 1 -bv -d %s" % csv_file
 
-        code, out, err = execute_cmd(testflo_cmd)
+        code, out, err = execute_cmd(benchmark_cmd)
 
         # if failure, post to slack
         if code and self.slack:

@@ -34,9 +34,6 @@ cat << EOM >job
 # Retain the existing environment (except PATH, see below):
 #$ -V
 #
-# Exclude the interactive node
-#$ -l h=!mdaoq.mdao0
-#
 # Output and error filenames (optional):
 #$ -o \$JOB_NAME-\$JOB_ID.output
 #$ -e \$JOB_NAME-\$JOB_ID.error
@@ -46,6 +43,9 @@ cat << EOM >job
 #
 # Address to send mail to (optional):
 #$ -M stephen.w.ryan@nasa.gov
+#
+# Exclude the interactive node
+#$ -hard -q mdao.q@mdao[1-9]*
 
 # USE_PROC_FILES causes I/O erros when using MPI.Spawn
 unset USE_PROC_FILES
@@ -58,7 +58,7 @@ env | grep PETSC
 echo ----  MPI  ----
 which mpirun
 
-mpirun -np 1 testflo -n 1 --mpispawn -bv -d $CSV_FILE
+mpirun -np 1 testflo -n 1 -bv -d $CSV_FILE
 EOM
 
 # submit job
