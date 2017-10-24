@@ -50,14 +50,6 @@ cat << EOM >job
 # USE_PROC_FILES causes I/O erros when using MPI.Spawn
 unset USE_PROC_FILES
 
-# check MPI/PETSc config
-echo ---- PATHs ----
-env | grep PATH
-echo ---- PETSc ----
-env | grep PETSC
-echo ----  MPI  ----
-which mpirun
-
 mpirun -np 1 testflo -n 1 -bv -d $CSV_FILE
 EOM
 
