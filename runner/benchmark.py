@@ -92,7 +92,7 @@ def init_env(project_info):
     global env
     env = os.environ.copy()
 
-    # prepend benchmark dir to PATH (to intercept mpirun command)
+    # prepend benchmark dir to PATH
     env["PATH"] = prepend_path(benchmark_dir, env["PATH"])
 
     # add any env vars from benchmark config
@@ -103,7 +103,7 @@ def init_env(project_info):
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
             val = val.replace("$PYTHONPATH", "")  # in case it was empty
-            print("setting benchmark ENV", key, "=", val)
+            print("setting benchmark ENV:", key, "=", val)
             env[key] = val
 
     # add any project specific env vars
@@ -114,7 +114,7 @@ def init_env(project_info):
             if val.find('$') >= 0:
                 val = os.path.expandvars(val)
             val = val.replace("$PYTHONPATH", "")  # in case it was empty
-            print("setting %s ENV" % project_info["name"], key, "=", val)
+            print("setting %s ENV:" % project_info["name"], key, "=", val)
             env[key] = val
 
 
@@ -1044,7 +1044,7 @@ class BenchmarkRunner(object):
 
                     # run the unit tests if requested and record current_commits if it fails
                     if unit_tests:
-                        rc = self.run_unittests(trigger_msg)
+                        rc = self.run_unittests(run_name, trigger_msg)
                         if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
@@ -1061,7 +1061,7 @@ class BenchmarkRunner(object):
                                 installed_deps[name_ver[0]] = name_ver[1]
 
                         csv_file = run_name+".csv"
-                        rc = self.run_benchmarks(trigger_msg, csv_file)
+                        rc = self.run_benchmarks(run_name, trigger_msg, csv_file)
                         if rc:
                             write_json(fail_file, current_commits)
                             good_commits = False
@@ -1129,11 +1129,8 @@ class BenchmarkRunner(object):
                     self.slack.post_message(msg)
                     mem_messages = mem_messages[max_messages:]
 
-    def run_unittests(self, trigger_msg):
+    def run_unittests(self, run_name, trigger_msg):
         testflo_cmd = "testflo -n 1 -vs"
-
-        #if "qsub" in conf and conf["qsub"]:
-        #     testflo_cmd += " --qsub"
 
         # run testflo command
         code, out, err = execute_cmd(testflo_cmd)
@@ -1157,14 +1154,17 @@ class BenchmarkRunner(object):
 
         return code
 
-    def run_benchmarks(self, trigger_msg, csv_file):
+    def run_benchmarks(self, run_name, trigger_msg, csv_file):
         """
         Use testflo to run benchmarks)
         """
-        testflo_cmd = "testflo -n 1 -bv -d %s" % csv_file
-        if "qsub" in conf and conf["qsub"]:
-            testflo_cmd += " --qsub"
-        code, out, err = execute_cmd(testflo_cmd)
+        benchmark_cmd = conf.get("benchmark_cmd")
+        if benchmark_cmd:
+            benchmark_cmd = "%s %s %s" % (benchmark_cmd, run_name, csv_file)
+        else:
+            benchmark_cmd = "testflo -n 1 -bv -d %s" % csv_file
+
+        code, out, err = execute_cmd(benchmark_cmd)
 
         # if failure, post to slack
         if code and self.slack:
