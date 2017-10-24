@@ -367,7 +367,7 @@ def activate_env(env_name, dependencies, local_repos):
     logging.info("env_name: %s, path: %s", env_name, env["PATH"])
 
     # need to do a pip install with --prefix to get things installed into proper conda env
-    pipinstall = "pip install --install-option=\"--prefix=" + conda_dir.replace("bin", "envs/"+env_name) + "\" "
+    pipinstall = "pip install -q --install-option=\"--prefix=" + conda_dir.replace("bin", "envs/"+env_name) + "\" "
 
     # install testflo to do the benchmarking
     code, out, err = execute_cmd(pipinstall + "git+https://github.com/swryan/testflo@work")
@@ -380,7 +380,7 @@ def activate_env(env_name, dependencies, local_repos):
         # if dependency is local "setup.py install" it, otherwise "pip install" it
         if dependency.startswith("~"):
             with cd(os.path.expanduser(dependency)):
-                code, out, err = execute_cmd("python setup.py install")
+                code, out, err = execute_cmd("python setup.py -q install")
             if (code != 0):
                 raise RuntimeError("Failed to install", dependency, "to", env_name, code, out, err)
         # python, numpy and scipy are installed when the env is created
@@ -393,7 +393,7 @@ def activate_env(env_name, dependencies, local_repos):
     # install from local repos
     for local_repo in local_repos:
         with repo(local_repo):
-            code, out, err = execute_cmd("pip install -e .")
+            code, out, err = execute_cmd("pip install -q -e .")
             if (code != 0):
                 code, out, err = execute_cmd("python setup.py -q install")
             if (code != 0):
