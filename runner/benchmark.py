@@ -1121,6 +1121,8 @@ class BenchmarkRunner(object):
                     msg = '\n'.join(cpu_messages[:max_messages])
                     self.slack.post_message(msg)
                     cpu_messages = cpu_messages[max_messages:]
+                if os.path.exists("top.txt"):
+                    self.slack.post_file("top.txt", "Top 10 CPU before and after")
 
             if mem_messages:
                 self.slack.post_message(notify % (name, "memory usage"))
