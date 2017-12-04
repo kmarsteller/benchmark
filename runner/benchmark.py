@@ -47,7 +47,7 @@ conf = {
     "plot_history": True,
 
     # CA cert information needed by curl (defaults)
-    "ca": {
+    "no-ca": {
         "cacert":  "/etc/ssl/certs/ca-certificates.crt",
         "capath":  "/etc/ssl/certs"
     },
@@ -475,7 +475,10 @@ class Slack(object):
         """
         p = json.dumps(payload)
         u = self.cfg["message"]
-        c = "--cacert %s --capath %s " % (self.ca["cacert"], self.ca["capath"])
+        if self.ca:
+            c = "--cacert %s --capath %s " % (self.ca["cacert"], self.ca["capath"])
+        else:
+            c = ""
 
         cmd = "curl -s -X POST -H 'Content-type: application/json' --data '%s' %s %s" % (p, u, c)
 
@@ -494,8 +497,10 @@ class Slack(object):
         cmd += "-F file=@%s -F title=%s -F filename=%s -F channels=%s -F token=%s " % \
                (filename, title, filename, self.cfg["channel"], self.cfg["token"])
 
-        cmd += "--cacert %s --capath %s  https://slack.com/api/files.upload" % \
-               (self.ca["cacert"], self.ca["capath"])
+        if self.ca:
+            cmd += "--cacert %s --capath %s " % (self.ca["cacert"], self.ca["capath"])
+
+        cmd += "https://slack.com/api/files.upload" 
 
         code, out, err = execute_cmd(cmd)
 
@@ -940,7 +945,7 @@ class BenchmarkRunner(object):
         self.db = BenchmarkDatabase(project["name"])
 
         if "slack" in conf:
-            self.slack = Slack(conf["slack"], conf["ca"])
+            self.slack = Slack(conf["slack"], conf.get("ca"))
         else:
             self.slack = None
 
