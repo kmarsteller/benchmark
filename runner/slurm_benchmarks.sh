@@ -31,7 +31,7 @@ echo "-----------"
 cat slurm.hosts
 
 # mpirun
-mpirun -np 1 -machinefile slurm.hosts testflo -n 1 -bv -d $CSV_FILE
+srun -n 1 mpirun -np 1 -machinefile slurm.hosts testflo -n 1 -bv -d $CSV_FILE
 
 # release the allocation
 exit
@@ -39,5 +39,5 @@ EOM
 
 # allocate resources and run the job script (exclude interactive node mdao10)
 #salloc -vvv -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
-salloc -vvv -p mdao --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
+salloc -vvv -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
 
