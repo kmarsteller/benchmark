@@ -1,20 +1,20 @@
 #!/bin/bash
 #
-# This script submits a job via SLURM to perform benchmarks via testlo
+# This script submits a job via SLURM to perform benchmarks with testflo
 #
-# Usage: $0 RUN_NAME CSV_FILE NSLOTS
+# Usage: $0 RUN_NAME CSV_FILE NPROCS
 #
 #     RUN_NAME : the name of the job (REQUIRED)
 #     CSV_FILE : the file name for the benchmark data (REQUIRED)
-#     NSLOTS   : the number of processors (optional, default 20)
+#     NPROCS   : the number of processors (optional, default 20)
 #
 
 RUN_NAME=$1
 CSV_FILE=$2
 
 case $3 in
-    ''|*[!0-9]*) NSLOTS=20 ;;
-    *)           NSLOTS=$1 ;;
+    ''|*[!0-9]*) NPROCS=20 ;;
+    *)           NPROCS=$1 ;;
 esac
 
 # generate job script
@@ -27,6 +27,7 @@ unset USE_PROC_FILES
 # create machinefile
 srun -l -p mdao /bin/hostname | sort -n | awk '{print \$2}' > slurm.hosts
 echo "slurm.hosts:"
+echo "-----------"
 cat slurm.hosts
 
 # mpirun
@@ -37,6 +38,6 @@ exit
 EOM
 
 # allocate resources and run the job script (exclude interactive node mdao10)
-#salloc -v -v -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NSLOTS -J $RUN_NAME bash job
-salloc -v -p mdao -n $NSLOTS -J $RUN_NAME bash job
+#salloc -vvv -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
+salloc -vvv -p mdao --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
 
