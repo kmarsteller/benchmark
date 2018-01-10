@@ -500,7 +500,7 @@ class Slack(object):
         if self.ca:
             cmd += "--cacert %s --capath %s " % (self.ca["cacert"], self.ca["capath"])
 
-        cmd += "https://slack.com/api/files.upload" 
+        cmd += "https://slack.com/api/files.upload"
 
         code, out, err = execute_cmd(cmd)
 
@@ -602,7 +602,7 @@ class BenchmarkDatabase(object):
 
     def check_benchmarks(self, timestamp=None, threshold=15.):
         """
-        Check the benchmark data from the given timestep for any benchmark with a
+        Check the benchmark data from the given timestamp for any benchmark with a
         significant change (greater than threshold) in elapsed time or memory usage.
         If no timestamp is given then check the most recent benchmark data.
         """
@@ -1241,7 +1241,7 @@ def _get_parser():
                         help='plot benchmark history for SPEC')
 
     parser.add_argument('-c', '--check', action='store_true', dest='check',
-                        help='check the most recent benchmark data for >10%% change')
+                        help='check the most recent benchmark data for significant change')
 
     parser.add_argument('-d', '--dump', action='store_true', dest='dump',
                         help='dump the contents of the database to an SQL file')
