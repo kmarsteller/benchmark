@@ -1072,7 +1072,7 @@ class BenchmarkRunner(object):
                             good_commits = False
                         else:
                             db.add_benchmark_data(current_commits, csv_file, installed_deps)
-                            self.post_results(trigger_msg, csv_file)
+                            self.post_results(trigger_msg)
                             if conf["remove_csv"]:
                                 os.remove(csv_file)
 
@@ -1086,32 +1086,35 @@ class BenchmarkRunner(object):
         # close the log file for this run
         close_log_file()
 
-    def post_results(self, trigger_msg, csv_file):
+    def post_results(self, trigger_msg):
         """
         generate plots and post a message to slack detailing benchmark results
         """
         db = self.db
         name = self.project["name"]
 
-        # generate plots if requested and upload if image location is provided
+        # generate summary plots if requested and upload if image location is provided
         image_url = None
-        plots = []
         summary_plots = []
-        images = conf.get("images")
+
         if conf["plot_history"]:
             summary_plots = db.plot_benchmarks(save=True)
-            if images and plots + summary_plots:
-                rc = upload(plots + summary_plots, conf["images"]["upload"])
+            if conf.get("images") and summary_plots:
+                rc = upload(summary_plots, conf["images"]["upload"])
                 if rc == 0:
                     image_url = conf["images"]["url"]
 
-        # if slack info is provided, post message to slack and
-        # notify if any benchmarks changed by more than 10%
+        # if slack info is provided, post message and plots to slack
         if self.slack:
-            # post message that benchmarks were run with summary plot(s)
+            # post message that benchmarks were run
             self.slack.post_message(trigger_msg)
-            for plot_file in summary_plots:
-                self.slack.post_image("", "/".join([image_url, plot_file]))
+
+            # post summary plots
+            if summary_plots:
+                for plot_file in summary_plots:
+                    self.slack.post_image("", "/".join([image_url, plot_file]))
+            else:
+                self.slack.post_message("No benchmarks found.")
 
             # check benchmarks for significant changes & post any resulting messages
             cpu_messages, mem_messages = db.check_benchmarks()
