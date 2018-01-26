@@ -19,7 +19,7 @@ esac
 
 # generate job script
 cat << EOM >job
-#!/bin/bash 
+#!/bin/bash
 
 # USE_PROC_FILES causes I/O erros when using MPI.Spawn
 unset USE_PROC_FILES
@@ -38,6 +38,5 @@ exit
 EOM
 
 # allocate resources and run the job script (exclude interactive node mdao10)
-#salloc -vvv -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
 salloc -vvv -p mdao -x mdao10 --exclusive --wait-all-nodes=1 -n $NPROCS -J $RUN_NAME bash job
 

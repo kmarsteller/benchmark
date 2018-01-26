@@ -1,5 +1,7 @@
 #!/bin/bash
 #
+# This script submits a job via qsub (if available) to perform benchmarks with testflo
+#
 # Usage: sub_benchmarks RUN_NAME CSV_FILE NSLOTS
 #
 #     RUN_NAME : the name of the job (REQUIRED)
@@ -60,6 +62,12 @@ ps -eo pcpu,cpuid,pid,user,args | sort -k 1 -r | head -10 >>top.txt
 
 EOM
 
-# submit job
-qsub -sync y job
-
+# submit job via qsub if available, otherwise just run via bash
+QSUB=`command -v qsub`
+if [ -n "$QSUB" ]; then
+    echo "submitting job via qsub"
+    qsub -sync y job
+else
+    echo "running job via bash"
+    bash job
+fi
